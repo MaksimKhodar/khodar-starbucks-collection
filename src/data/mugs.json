@@ -1,0 +1,35 @@
+[
+  {
+    "id": "poland-warsaw-001",
+    "countryName": "Poland",
+    "city": "Warsaw",
+    "title": "Starbucks Warsaw Mug",
+    "type": "local",
+    "receivedAt": "2024-11",
+    "broughtBy": "Maxim",
+    "note": "Первая тестовая кружка для MVP",
+    "image": ""
+  },
+  {
+    "id": "italy-milan-001",
+    "countryName": "Italy",
+    "city": "Milan",
+    "title": "Starbucks Milan Mug",
+    "type": "local",
+    "receivedAt": "2025-01",
+    "broughtBy": "Friend",
+    "note": "Привезена из поездки",
+    "image": ""
+  },
+  {
+    "id": "japan-tokyo-001",
+    "countryName": "Japan",
+    "city": "Tokyo",
+    "title": "Starbucks Tokyo Mug",
+    "type": "local",
+    "receivedAt": "2025-03",
+    "broughtBy": "Colleague",
+    "note": "Тестовая запись для карты",
+    "image": ""
+  }
+]
