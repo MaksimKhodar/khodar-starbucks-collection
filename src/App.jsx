@@ -4,6 +4,8 @@ import CountriesAdmin from "./components/CountriesAdmin";
 import MugsAdmin from "./components/MugsAdmin";
 import MugCarousel from "./components/MugCarousel";
 import GlobeMapAsync from "./components/GlobeMapAsync";
+import CatalogPage from "./components/CatalogPage";
+import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -28,7 +30,62 @@ function extractCountryPayload(arg1, arg2) {
   };
 }
 
-function App() {
+function LanguageSwitch() {
+  const { language, setLanguage } = useLanguage();
+
+  return (
+    <div
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: "6px",
+        borderRadius: "999px",
+        background: "#f5efe6",
+        border: "1px solid #eadfce",
+        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setLanguage("ru")}
+        style={{
+          border: "none",
+          borderRadius: "999px",
+          padding: "8px 14px",
+          cursor: "pointer",
+          fontWeight: 600,
+          background: language === "ru" ? "#1f6f54" : "transparent",
+          color: language === "ru" ? "#ffffff" : "#1f2937",
+          transition: "all 0.2s ease",
+        }}
+      >
+        RU
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setLanguage("en")}
+        style={{
+          border: "none",
+          borderRadius: "999px",
+          padding: "8px 14px",
+          cursor: "pointer",
+          fontWeight: 600,
+          background: language === "en" ? "#1f6f54" : "transparent",
+          color: language === "en" ? "#ffffff" : "#1f2937",
+          transition: "all 0.2s ease",
+        }}
+      >
+        EN
+      </button>
+    </div>
+  );
+}
+
+function AppContent() {
+  const { language, t } = useLanguage();
+
   const [countries, setCountries] = useState([]);
   const [mugs, setMugs] = useState([]);
 
@@ -157,13 +214,16 @@ function App() {
     return countries.map((country) => ({
       id: country.id,
       code: normalizeIso2(country.iso2_code),
-      name: country.name_ru || country.name_en || country.iso2_code || "",
+      name:
+        language === "en"
+          ? country.name_en || country.name_ru || country.iso2_code || ""
+          : country.name_ru || country.name_en || country.iso2_code || "",
       nameRu: country.name_ru || "",
       nameEn: country.name_en || "",
       hasStarbucks: !!country.has_starbucks_current,
       mugsCount: mugCountByCountryId.get(country.id) ?? 0,
     }));
-  }, [countries, mugCountByCountryId]);
+  }, [countries, mugCountByCountryId, language]);
 
   const visibleCountryIso = selectedCountryIso || hoveredCountryIso;
   const visibleCountryLabel = selectedCountryLabel || hoveredCountryLabel;
@@ -203,6 +263,14 @@ function App() {
     setSelectedCountryLabel("");
   }
 
+  function getCountryDisplayName(country) {
+    if (!country) return "—";
+
+    return language === "en"
+      ? country.name_en || country.name_ru || country.iso2_code || "—"
+      : country.name_ru || country.name_en || country.iso2_code || "—";
+  }
+
   function renderMap() {
     const globeMapProps = {
       countryData: globeCountryData,
@@ -237,45 +305,86 @@ function App() {
     );
   }
 
+  function renderLoading() {
+    return (
+      <div className="card">
+        <div className="empty-state">
+          <h2>{t("loadingTitle")}</h2>
+          <p>{t("loadingText")}</p>
+        </div>
+      </div>
+    );
+  }
+
+  function renderError() {
+    return (
+      <div className="card">
+        <div className="empty-state">
+          <h2>{t("errorTitle")}</h2>
+          <p>{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
-      <header className="hero">
-        <p className="eyebrow">Khodar Starbucks Collection</p>
-        <h1>Интерактивная карта моей коллекции кружек Starbucks</h1>
-        <p className="hero-text">
-          Открыта 3D-карта коллекции. Наведите курсор на страну или кликните по
-          ней — справа появится статус страны и список кружек, если они есть.
-        </p>
+      <header
+        className="hero"
+        style={{
+          position: "relative",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: "24px",
+            right: "24px",
+            zIndex: 5,
+          }}
+        >
+          <LanguageSwitch />
+        </div>
+
+        <div
+          style={{
+            paddingRight: "170px",
+          }}
+        >
+          <p className="eyebrow">Khodar Starbucks Collection</p>
+          <h1>{t("heroTitle")}</h1>
+          <p className="hero-text">{t("heroText")}</p>
+        </div>
 
         <div className="stats">
           <div className="stat">
             <span className="stat-value">{mugs.length}</span>
-            <span className="stat-label">опубликованных кружек</span>
+            <span className="stat-label">{t("publishedMugs")}</span>
           </div>
 
           <div className="stat">
             <span className="stat-value">{countriesWithStarbucksCount}</span>
-            <span className="stat-label">стран со Starbucks</span>
+            <span className="stat-label">{t("countriesWithStarbucks")}</span>
           </div>
 
           <div className="stat">
             <span className="stat-value">{countriesWithMugsCount}</span>
-            <span className="stat-label">стран с кружками</span>
+            <span className="stat-label">{t("countriesWithMugs")}</span>
           </div>
         </div>
 
         <div className="legend">
           <div className="legend-item">
             <span className="legend-dot legend-dot-gray" />
-            <span>Starbucks нет</span>
+            <span>{t("legendNoStarbucks")}</span>
           </div>
           <div className="legend-item">
             <span className="legend-dot legend-dot-light" />
-            <span>Starbucks есть, кружек пока нет</span>
+            <span>{t("legendStarbucksNoMugs")}</span>
           </div>
           <div className="legend-item">
             <span className="legend-dot legend-dot-green" />
-            <span>Есть кружки из страны</span>
+            <span>{t("legendHasMugs")}</span>
           </div>
         </div>
 
@@ -289,7 +398,19 @@ function App() {
             onClick={() => setCurrentView("map")}
             type="button"
           >
-            Карта
+            {t("map")}
+          </button>
+
+          <button
+            className={
+              currentView === "catalog"
+                ? "view-switch-button active"
+                : "view-switch-button"
+            }
+            onClick={() => setCurrentView("catalog")}
+            type="button"
+          >
+            {t("catalog")}
           </button>
 
           <button
@@ -301,7 +422,7 @@ function App() {
             onClick={() => setCurrentView("countries")}
             type="button"
           >
-            Страны
+            {t("countries")}
           </button>
 
           <button
@@ -313,7 +434,7 @@ function App() {
             onClick={() => setCurrentView("mugs")}
             type="button"
           >
-            Кружки
+            {t("mugs")}
           </button>
         </div>
       </header>
@@ -322,20 +443,23 @@ function App() {
         <CountriesAdmin onChanged={loadData} />
       ) : currentView === "mugs" ? (
         <MugsAdmin onChanged={loadData} />
+      ) : currentView === "catalog" ? (
+        loading ? (
+          renderLoading()
+        ) : error ? (
+          renderError()
+        ) : (
+          <CatalogPage
+            mugs={mugs}
+            countries={countries}
+            selectedCountryIso={selectedCountryIso}
+            selectedCountryLabel={selectedCountryLabel}
+          />
+        )
       ) : loading ? (
-        <div className="card">
-          <div className="empty-state">
-            <h2>Загрузка данных…</h2>
-            <p>Получаем страны и кружки из базы данных.</p>
-          </div>
-        </div>
+        renderLoading()
       ) : error ? (
-        <div className="card">
-          <div className="empty-state">
-            <h2>Ошибка загрузки</h2>
-            <p>{error}</p>
-          </div>
-        </div>
+        renderError()
       ) : (
         <main className="layout">
           <section className="card map-card">
@@ -349,7 +473,7 @@ function App() {
                 marginBottom: "12px",
               }}
             >
-              <div className="section-title">Глобус 3D</div>
+              <div className="section-title">{t("globe3d")}</div>
             </div>
 
             {renderMap()}
@@ -358,53 +482,47 @@ function App() {
           <aside className="card side-card">
             {!visibleCountryLabel ? (
               <div className="empty-state">
-                <h2>Наведите курсор на страну</h2>
-                <p>Здесь будет показываться её статус и кружки.</p>
+                <h2>{t("hoverCountryTitle")}</h2>
+                <p>{t("hoverCountryText")}</p>
               </div>
             ) : !activeCountryRecord ? (
               <div className="empty-state">
                 <h2>{visibleCountryLabel}</h2>
-                <p>
-                  Эта страна пока не заведена в базе данных или не сопоставилась
-                  с ISO-кодом карты.
-                </p>
+                <p>{t("countryNotMatched")}</p>
               </div>
             ) : (
               <>
                 <div className="section-title">
-                  {activeCountryRecord.name_ru || activeCountryRecord.name_en}
+                  {getCountryDisplayName(activeCountryRecord)}
                 </div>
 
                 <div className="country-panel-actions">
                   {selectedCountryLabel ? (
                     <>
-                      <span className="selection-badge">Страна выбрана</span>
+                      <span className="selection-badge">{t("selectedCountry")}</span>
                       <button
                         className="secondary-button"
                         onClick={clearSelectedCountry}
                         type="button"
                       >
-                        Снять выбор
+                        {t("clearSelection")}
                       </button>
                     </>
                   ) : (
-                    <span className="selection-hint">
-                      Наведение временное. Кликните по стране, чтобы закрепить
-                      её.
-                    </span>
+                    <span className="selection-hint">{t("hoverHint")}</span>
                   )}
                 </div>
 
                 <div className="country-status-block">
                   <div className="status-row">
-                    <span className="status-label">ISO:</span>
+                    <span className="status-label">{t("iso")}:</span>
                     <span className="status-value">
                       {activeCountryRecord.iso2_code || "—"}
                     </span>
                   </div>
 
                   <div className="status-row">
-                    <span className="status-label">Starbucks:</span>
+                    <span className="status-label">{t("starbucks")}:</span>
                     <span
                       className={
                         activeCountryRecord.has_starbucks_current
@@ -412,12 +530,14 @@ function App() {
                           : "status-badge status-badge-gray"
                       }
                     >
-                      {activeCountryRecord.has_starbucks_current ? "есть" : "нет"}
+                      {activeCountryRecord.has_starbucks_current
+                        ? t("yes")
+                        : t("no")}
                     </span>
                   </div>
 
                   <div className="status-row">
-                    <span className="status-label">Кружек в коллекции:</span>
+                    <span className="status-label">{t("mugsInCollection")}:</span>
                     <span className="status-value">{activeMugs.length}</span>
                   </div>
                 </div>
@@ -425,14 +545,9 @@ function App() {
                 {activeMugs.length === 0 ? (
                   <div className="empty-state">
                     {activeCountryRecord.has_starbucks_current ? (
-                      <p>
-                        В этой стране Starbucks есть, но кружек в вашей
-                        коллекции пока нет.
-                      </p>
+                      <p>{t("noMugsButStarbucks")}</p>
                     ) : (
-                      <p>
-                        В этой стране Starbucks сейчас отмечен как отсутствующий.
-                      </p>
+                      <p>{t("noStarbucksNow")}</p>
                     )}
                   </div>
                 ) : (
@@ -448,21 +563,21 @@ function App() {
                           <div className="mug-content">
                             <h3>{mug.title}</h3>
                             <p>
-                              <strong>Город:</strong> {mug.city || "—"}
+                              <strong>{t("city")}:</strong> {mug.city || "—"}
                             </p>
                             <p>
-                              <strong>Тип:</strong> {mug.mug_type || "—"}
+                              <strong>{t("type")}:</strong> {mug.mug_type || "—"}
                             </p>
                             <p>
-                              <strong>Когда получена:</strong>{" "}
+                              <strong>{t("receivedAt")}:</strong>{" "}
                               {formatDate(mug.received_at)}
                             </p>
                             <p>
-                              <strong>Кто привёз:</strong>{" "}
+                              <strong>{t("broughtBy")}:</strong>{" "}
                               {mug.brought_by || "—"}
                             </p>
                             <p>
-                              <strong>Заметка:</strong> {mug.note || "—"}
+                              <strong>{t("note")}:</strong> {mug.note || "—"}
                             </p>
                           </div>
                         </article>
@@ -476,6 +591,14 @@ function App() {
         </main>
       )}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <LanguageProvider>
+      <AppContent />
+    </LanguageProvider>
   );
 }
 
