@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { normalizeIso2 as baseNormalizeIso2 } from "../lib/utils";
 
+// Extended normalization for 2D map: handles special case of "UK" -> "GB"
 function normalizeIso2(value) {
-  const normalized = (value || "").toUpperCase().trim();
+  const normalized = baseNormalizeIso2(value);
 
   if (normalized === "UK") return "GB";
   return normalized;

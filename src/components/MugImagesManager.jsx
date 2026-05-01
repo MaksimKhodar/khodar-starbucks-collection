@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -21,6 +21,11 @@ import {
   reorderMugImages,
   mugImagePublicUrl,
 } from "../lib/mugImages";
+
+function formatFileSize(bytes = 0) {
+  if (!bytes) return "0 KB";
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
 
 function SortableImageCard({ image, busy, onDelete, onReplace }) {
   const {
@@ -75,12 +80,12 @@ function SortableImageCard({ image, busy, onDelete, onReplace }) {
             accept="image/*"
             hidden
             disabled={busy}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
+            onChange={(event) => {
+              const file = event.target.files?.[0];
               if (file) {
                 onReplace(image, file);
               }
-              e.target.value = "";
+              event.target.value = "";
             }}
           />
         </label>
@@ -98,7 +103,40 @@ function SortableImageCard({ image, busy, onDelete, onReplace }) {
   );
 }
 
-function MugImagesManager({ mugId, onChanged }) {
+function PendingImageCard({ file, index, onRemove }) {
+  return (
+    <div
+      style={{
+        border: "1px solid #e1e9e2",
+        borderRadius: "16px",
+        padding: "12px",
+        background: "#fbfcfb",
+        display: "grid",
+        gap: "8px",
+      }}
+    >
+      <div style={{ fontWeight: 700, color: "#1f2937" }}>#{index + 1}</div>
+      <div style={{ color: "#374151", wordBreak: "break-word" }}>{file.name}</div>
+      <div style={{ color: "#6b7280", fontSize: "13px" }}>
+        {formatFileSize(file.size)}
+      </div>
+      <button
+        type="button"
+        className="danger-button"
+        onClick={onRemove}
+      >
+        Удалить
+      </button>
+    </div>
+  );
+}
+
+function MugImagesManager({
+  mugId,
+  onChanged,
+  pendingFiles = [],
+  onPendingFilesChange,
+}) {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -113,16 +151,7 @@ function MugImagesManager({ mugId, onChanged }) {
     })
   );
 
-  useEffect(() => {
-    if (!mugId) {
-      setImages([]);
-      return;
-    }
-
-    loadImages();
-  }, [mugId]);
-
-  async function loadImages() {
+  const loadImages = useCallback(async () => {
     if (!mugId) return;
 
     setLoading(true);
@@ -136,15 +165,43 @@ function MugImagesManager({ mugId, onChanged }) {
     } finally {
       setLoading(false);
     }
+  }, [mugId]);
+
+  useEffect(() => {
+    if (!mugId) {
+      setImages([]);
+      return;
+    }
+
+    loadImages();
+  }, [mugId, loadImages]);
+
+  function appendPendingFiles(files) {
+    const nextFiles = Array.from(files || []);
+    if (!nextFiles.length) return;
+
+    if (pendingFiles.length + nextFiles.length > 10) {
+      setError("У одной кружки может быть максимум 10 изображений.");
+      return;
+    }
+
+    setError("");
+    onPendingFilesChange?.([...(pendingFiles || []), ...nextFiles]);
   }
 
-  async function handleUpload(e) {
-    const files = Array.from(e.target.files || []);
+  async function handleUpload(event) {
+    const files = Array.from(event.target.files || []);
     if (!files.length) return;
+
+    if (!mugId) {
+      appendPendingFiles(files);
+      event.target.value = "";
+      return;
+    }
 
     if (images.length + files.length > 10) {
       setError("У одной кружки может быть максимум 10 изображений.");
-      e.target.value = "";
+      event.target.value = "";
       return;
     }
 
@@ -159,7 +216,7 @@ function MugImagesManager({ mugId, onChanged }) {
       setError(err.message || "Не удалось загрузить изображения.");
     } finally {
       setUploading(false);
-      e.target.value = "";
+      event.target.value = "";
     }
   }
 
@@ -229,14 +286,7 @@ function MugImagesManager({ mugId, onChanged }) {
     }
   }
 
-  if (!mugId) {
-    return (
-      <div className="image-manager-placeholder">
-        Сначала сохраните кружку. После этого здесь появится управление галереей
-        до 10 изображений.
-      </div>
-    );
-  }
+  const activeCount = mugId ? images.length : pendingFiles.length;
 
   return (
     <section className="mug-images-manager">
@@ -244,13 +294,13 @@ function MugImagesManager({ mugId, onChanged }) {
         <div>
           <div className="mug-images-manager-title">Фотографии кружки</div>
           <div className="mug-images-manager-subtitle">
-            {images.length} / 10 изображений
+            {activeCount} / 10 изображений
           </div>
         </div>
 
         <label
           className={`primary-button upload-images-label ${
-            images.length >= 10 ? "disabled-label" : ""
+            activeCount >= 10 ? "disabled-label" : ""
           }`}
         >
           {uploading ? "Загружаем..." : "Добавить фото"}
@@ -259,15 +309,49 @@ function MugImagesManager({ mugId, onChanged }) {
             accept="image/*"
             multiple
             hidden
-            disabled={uploading || images.length >= 10}
+            disabled={uploading || activeCount >= 10}
             onChange={handleUpload}
           />
         </label>
       </div>
 
+      {!mugId && (
+        <div className="empty-inline">
+          Фотографии можно добавить уже сейчас. Они загрузятся автоматически,
+          когда кружка будет сохранена.
+        </div>
+      )}
+
       {error && <div className="form-error">{error}</div>}
 
-      {loading ? (
+      {!mugId ? (
+        pendingFiles.length === 0 ? (
+          <div className="empty-inline">
+            Пока нет фотографий. Выберите файлы до сохранения кружки.
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gap: "12px",
+            }}
+          >
+            {pendingFiles.map((file, index) => (
+              <PendingImageCard
+                key={`${file.name}-${file.size}-${index}`}
+                file={file}
+                index={index}
+                onRemove={() =>
+                  onPendingFilesChange?.(
+                    pendingFiles.filter((_, fileIndex) => fileIndex !== index)
+                  )
+                }
+              />
+            ))}
+          </div>
+        )
+      ) : loading ? (
         <div className="empty-inline">Загрузка изображений...</div>
       ) : images.length === 0 ? (
         <div className="empty-inline">

@@ -850,3 +850,30 @@ select {
   min-width: 52px;
   text-align: right;
 }
+.hero-with-language {
+  position: relative;
+}
+
+.hero-language-switch {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 5;
+}
+
+.hero-main-content {
+  padding-right: 170px;
+}
+
+@media (max-width: 768px) {
+  .hero-language-switch {
+    position: static;
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 16px;
+  }
+
+  .hero-main-content {
+    padding-right: 0;
+  }
+}

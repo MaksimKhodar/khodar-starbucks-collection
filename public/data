@@ -1,0 +1,1524 @@
+[1mdiff --git a/src/App.jsx b/src/App.jsx[m
+[1mindex 183215e..72f6dad 100644[m
+[1m--- a/src/App.jsx[m
+[1m+++ b/src/App.jsx[m
+[36m@@ -1,32 +1,33 @@[m
+[31m-import { useEffect, useMemo, useState } from "react";[m
+[32m+[m[32mimport { useCallback, useEffect, useMemo, useState } from "react";[m
+ import { supabase } from "./lib/supabase";[m
+ import CountriesAdmin from "./components/CountriesAdmin";[m
+[32m+[m[32mimport ErrorBoundary from "./components/ErrorBoundary";[m
+ import MugsAdmin from "./components/MugsAdmin";[m
+ import MugCarousel from "./components/MugCarousel";[m
+ import GlobeMapAsync from "./components/GlobeMapAsync";[m
+ import CatalogPage from "./components/CatalogPage";[m
+[32m+[m[32mimport PeopleVisualization from "./components/PeopleVisualization";[m
+[32m+[m[32mimport PeopleAdmin from "./components/PeopleAdmin";[m
+ import { LanguageProvider, useLanguage } from "./context/LanguageContext";[m
+[32m+[m[32mimport { normalizeIso2, formatDate } from "./lib/utils";[m
+ [m
+[31m-function formatDate(value) {[m
+[31m-  if (!value) return "—";[m
+[31m-  return value.slice(0, 7);[m
+[31m-}[m
+[31m-[m
+[31m-function normalizeIso2(value) {[m
+[31m-  return (value || "").toUpperCase().trim();[m
+[31m-}[m
+[32m+[m[32mfunction extractCountryPayload(payload) {[m
+[32m+[m[32m  if (!payload) {[m
+[32m+[m[32m    return { iso: "", label: "" };[m
+[32m+[m[32m  }[m
+ [m
+[31m-function extractCountryPayload(arg1, arg2) {[m
+[31m-  if (arg1 && typeof arg1 === "object") {[m
+[32m+[m[32m  if (typeof payload === "object") {[m
+     return {[m
+[31m-      iso: normalizeIso2(arg1.code || arg1.iso || arg1.countryCode || ""),[m
+[31m-      label: arg1.name || arg1.label || arg1.countryName || "",[m
+[32m+[m[32m      iso: normalizeIso2([m
+[32m+[m[32m        payload.code || payload.iso || payload.countryCode || ""[m
+[32m+[m[32m      ),[m
+[32m+[m[32m      label: payload.name || payload.label || payload.countryName || "",[m
+     };[m
+   }[m
+ [m
+   return {[m
+[31m-    iso: normalizeIso2(arg1 || ""),[m
+[31m-    label: arg2 || "",[m
+[32m+[m[32m    iso: normalizeIso2(String(payload || "")),[m
+[32m+[m[32m    label: "",[m
+   };[m
+ }[m
+ [m
+[36m@@ -87,7 +88,9 @@[m [mfunction AppContent() {[m
+   const { language, t } = useLanguage();[m
+ [m
+   const [countries, setCountries] = useState([]);[m
+[32m+[m[32m  const [cities, setCities] = useState([]);[m
+   const [mugs, setMugs] = useState([]);[m
+[32m+[m[32m  const [people, setPeople] = useState([]);[m
+ [m
+   const [hoveredCountryIso, setHoveredCountryIso] = useState("");[m
+   const [hoveredCountryLabel, setHoveredCountryLabel] = useState("");[m
+[36m@@ -95,69 +98,205 @@[m [mfunction AppContent() {[m
+   const [selectedCountryLabel, setSelectedCountryLabel] = useState("");[m
+ [m
+   const [loading, setLoading] = useState(true);[m
+[31m-  const [error, setError] = useState("");[m
+[32m+[m[32m  const [fatalError, setFatalError] = useState("");[m
+[32m+[m[32m  const [warningMessage, setWarningMessage] = useState("");[m
+   const [currentView, setCurrentView] = useState("map");[m
+ [m
+[31m-  useEffect(() => {[m
+[31m-    loadData();[m
+[31m-  }, []);[m
+[32m+[m[32m  const tryLoadTable = useCallback(async (queryFn, retryQueryFn = null) => {[m
+[32m+[m[32m    const result = await queryFn();[m
+ [m
+[31m-  async function loadData() {[m
+[31m-    setLoading(true);[m
+[31m-    setError("");[m
+[32m+[m[32m    if (!result.error) {[m
+[32m+[m[32m      return result;[m
+[32m+[m[32m    }[m
+ [m
+[31m-    const [countriesResult, mugsResult] = await Promise.all([[m
+[31m-      supabase[m
+[31m-        .from("countries")[m
+[31m-        .select([m
+[31m-          "id, iso2_code, name_en, name_ru, has_starbucks_current, is_visible"[m
+[31m-        )[m
+[31m-        .eq("is_visible", true)[m
+[31m-        .order("name_en", { ascending: true }),[m
+[31m-[m
+[31m-      supabase[m
+[31m-        .from("mugs")[m
+[31m-        .select(`[m
+[31m-          id,[m
+[31m-          country_id,[m
+[31m-          slug,[m
+[31m-          title,[m
+[31m-          city,[m
+[31m-          mug_type,[m
+[31m-          received_at,[m
+[31m-          brought_by,[m
+[31m-          note,[m
+[31m-          cover_image_path,[m
+[31m-          is_published,[m
+[31m-          mug_images ([m
+[31m-            id,[m
+[31m-            mug_id,[m
+[31m-            storage_path,[m
+[31m-            sort_order,[m
+[31m-            alt_text,[m
+[31m-            created_at[m
+[31m-          )[m
+[31m-        `)[m
+[31m-        .eq("is_published", true)[m
+[31m-        .order("received_at", { ascending: false }),[m
+[31m-    ]);[m
+[31m-[m
+[31m-    if (countriesResult.error) {[m
+[31m-      setError(countriesResult.error.message);[m
+[31m-      setLoading(false);[m
+[31m-      return;[m
+[32m+[m[32m    const shouldRetry =[m
+[32m+[m[32m      retryQueryFn &&[m
+[32m+[m[32m      /(column .* does not exist|undefined column|relation .* does not exist|таблица .* не существует|Нет столбца)/i.test([m
+[32m+[m[32m        String(result.error.message || "")[m
+[32m+[m[32m      );[m
+[32m+[m
+[32m+[m[32m    if (shouldRetry) {[m
+[32m+[m[32m      return retryQueryFn();[m
+     }[m
+ [m
+[31m-    if (mugsResult.error) {[m
+[31m-      setError(mugsResult.error.message);[m
+[32m+[m[32m    return result;[m
+[32m+[m[32m  }, []);[m
+[32m+[m
+[32m+[m[32m  const loadData = useCallback(async () => {[m
+[32m+[m[32m    setLoading(true);[m
+[32m+[m[32m    setFatalError("");[m
+[32m+[m[32m    setWarningMessage("");[m
+[32m+[m
+[32m+[m[32m    const [countriesResult, mugsResult, peopleResult, citiesResult] =[m
+[32m+[m[32m      await Promise.all([[m
+[32m+[m[32m        tryLoadTable([m
+[32m+[m[32m          () =>[m
+[32m+[m[32m            supabase[m
+[32m+[m[32m              .from("countries")[m
+[32m+[m[32m              .select([m
+[32m+[m[32m                "id, iso2_code, name_en, name_ru, has_starbucks_current, is_visible"[m
+[32m+[m[32m              )[m
+[32m+[m[32m              .eq("is_visible", true)[m
+[32m+[m[32m              .order("name_en", { ascending: true }),[m
+[32m+[m[32m          () =>[m
+[32m+[m[32m            supabase[m
+[32m+[m[32m              .from("countries")[m
+[32m+[m[32m              .select("id, iso2_code, name_en, name_ru, has_starbucks_current")[m
+[32m+[m[32m              .order("name_en", { ascending: true })[m
+[32m+[m[32m        ),[m
+[32m+[m
+[32m+[m[32m        tryLoadTable([m
+[32m+[m[32m          () =>[m
+[32m+[m[32m            supabase[m
+[32m+[m[32m              .from("mugs")[m
+[32m+[m[32m              .select(`[m
+[32m+[m[32m                id,[m
+[32m+[m[32m                country_id,[m
+[32m+[m[32m                city_id,[m
+[32m+[m[32m                slug,[m
+[32m+[m[32m                title,[m
+[32m+[m[32m                city,[m
+[32m+[m[32m                city_key,[m
+[32m+[m[32m                mug_type,[m
+[32m+[m[32m                received_at,[m
+[32m+[m[32m                brought_by,[m
+[32m+[m[32m                brought_by_person_ids,[m
+[32m+[m[32m                brought_by_person_id,[m
+[32m+[m[32m                color_keys,[m
+[32m+[m[32m                collection_keys,[m
+[32m+[m[32m                note,[m
+[32m+[m[32m                cover_image_path,[m
+[32m+[m[32m                is_published,[m
+[32m+[m[32m                created_at,[m
+[32m+[m[32m                updated_at,[m
+[32m+[m[32m                mug_images ([m
+[32m+[m[32m                  id,[m
+[32m+[m[32m                  mug_id,[m
+[32m+[m[32m                  storage_path,[m
+[32m+[m[32m                  sort_order,[m
+[32m+[m[32m                  alt_text,[m
+[32m+[m[32m                  created_at[m
+[32m+[m[32m                )[m
+[32m+[m[32m              `)[m
+[32m+[m[32m              .eq("is_published", true)[m
+[32m+[m[32m              .order("received_at", { ascending: false }),[m
+[32m+[m[32m          () =>[m
+[32m+[m[32m            supabase[m
+[32m+[m[32m              .from("mugs")[m
+[32m+[m[32m              .select(`[m
+[32m+[m[32m                id,[m
+[32m+[m[32m                country_id,[m
+[32m+[m[32m                slug,[m
+[32m+[m[32m                title,[m
+[32m+[m[32m                city,[m
+[32m+[m[32m                mug_type,[m
+[32m+[m[32m                received_at,[m
+[32m+[m[32m                brought_by,[m
+[32m+[m[32m                note,[m
+[32m+[m[32m                cover_image_path,[m
+[32m+[m[32m                is_published,[m
+[32m+[m[32m                mug_images ([m
+[32m+[m[32m                  id,[m
+[32m+[m[32m                  mug_id,[m
+[32m+[m[32m                  storage_path,[m
+[32m+[m[32m                  sort_order,[m
+[32m+[m[32m                  alt_text,[m
+[32m+[m[32m                  created_at[m
+[32m+[m[32m                )[m
+[32m+[m[32m              `)[m
+[32m+[m[32m              .eq("is_published", true)[m
+[32m+[m[32m              .order("received_at", { ascending: false })[m
+[32m+[m[32m        ),[m
+[32m+[m
+[32m+[m[32m        tryLoadTable([m
+[32m+[m[32m          () =>[m
+[32m+[m[32m            supabase[m
+[32m+[m[32m              .from("people")[m
+[32m+[m[32m              .select([m
+[32m+[m[32m                "id, first_name, last_name, bio, avatar_image_path, instagram_url, is_visible"[m
+[32m+[m[32m              )[m
+[32m+[m[32m              .eq("is_visible", true)[m
+[32m+[m[32m              .order("first_name", { ascending: true }),[m
+[32m+[m[32m          () =>[m
+[32m+[m[32m            supabase[m
+[32m+[m[32m              .from("people")[m
+[32m+[m[32m              .select([m
+[32m+[m[32m                "id, first_name, last_name, bio, avatar_image_path, instagram_url"[m
+[32m+[m[32m              )[m
+[32m+[m[32m              .order("first_name", { ascending: true })[m
+[32m+[m[32m        ),[m
+[32m+[m
+[32m+[m[32m        tryLoadTable([m
+[32m+[m[32m          () =>[m
+[32m+[m[32m            supabase[m
+[32m+[m[32m              .from("cities")[m
+[32m+[m[32m              .select([m
+[32m+[m[32m                "id, key, country_id, name_en, name_ru, latitude, longitude, is_active"[m
+[32m+[m[32m              )[m
+[32m+[m[32m              .eq("is_active", true)[m
+[32m+[m[32m              .order("name_en", { ascending: true }),[m
+[32m+[m[32m          () =>[m
+[32m+[m[32m            supabase[m
+[32m+[m[32m              .from("cities")[m
+[32m+[m[32m              .select([m
+[32m+[m[32m                "id, key, country_id, name_en, name_ru, latitude, longitude"[m
+[32m+[m[32m              )[m
+[32m+[m[32m              .order("name_en", { ascending: true })[m
+[32m+[m[32m        ),[m
+[32m+[m[32m      ]);[m
+[32m+[m
+[32m+[m[32m    if (countriesResult.error || mugsResult.error) {[m
+[32m+[m[32m      setFatalError([m
+[32m+[m[32m        countriesResult.error?.message ||[m
+[32m+[m[32m          mugsResult.error?.message ||[m
+[32m+[m[32m          "Не удалось загрузить страны и кружки."[m
+[32m+[m[32m      );[m
+[32m+[m[32m      setCountries([]);[m
+[32m+[m[32m      setMugs([]);[m
+[32m+[m[32m      setPeople([]);[m
+[32m+[m[32m      setCities([]);[m
+       setLoading(false);[m
+       return;[m
+     }[m
+ [m
+     setCountries(countriesResult.data ?? []);[m
+     setMugs(mugsResult.data ?? []);[m
+[32m+[m[32m    setPeople(peopleResult.error ? [] : peopleResult.data ?? []);[m
+[32m+[m[32m    setCities(citiesResult.error ? [] : citiesResult.data ?? []);[m
+[32m+[m
+[32m+[m[32m    const warnings = [[m
+[32m+[m[32m      peopleResult.error ? `People: ${peopleResult.error.message}` : null,[m
+[32m+[m[32m      citiesResult.error ? `Cities: ${citiesResult.error.message}` : null,[m
+[32m+[m[32m    ].filter(Boolean);[m
+[32m+[m
+[32m+[m[32m    setWarningMessage(warnings.join(" / "));[m
+     setLoading(false);[m
+[31m-  }[m
+[32m+[m[32m  }, [tryLoadTable]);[m
+[32m+[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    let cancelled = false;[m
+[32m+[m
+[32m+[m[32m    async function run() {[m
+[32m+[m[32m      try {[m
+[32m+[m[32m        await loadData();[m
+[32m+[m[32m      } catch (unexpectedError) {[m
+[32m+[m[32m        if (!cancelled) {[m
+[32m+[m[32m          console.error("Unexpected data fetch error:", unexpectedError);[m
+[32m+[m[32m          setFatalError([m
+[32m+[m[32m            unexpectedError?.message ||[m
+[32m+[m[32m              "Не удалось загрузить данные. Пожалуйста, попробуйте позже."[m
+[32m+[m[32m          );[m
+[32m+[m[32m          setLoading(false);[m
+[32m+[m[32m        }[m
+[32m+[m[32m      }[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    run();[m
+[32m+[m
+[32m+[m[32m    return () => {[m
+[32m+[m[32m      cancelled = true;[m
+[32m+[m[32m    };[m
+[32m+[m[32m  }, [loadData]);[m
+ [m
+   const countriesByIso = useMemo(() => {[m
+     const map = new Map();[m
+[36m@@ -172,11 +311,23 @@[m [mfunction AppContent() {[m
+     return map;[m
+   }, [countries]);[m
+ [m
+[32m+[m[32m  const citiesById = useMemo(() => {[m
+[32m+[m[32m    const map = new Map();[m
+[32m+[m
+[32m+[m[32m    cities.forEach((city) => {[m
+[32m+[m[32m      map.set(String(city.id), city);[m
+[32m+[m[32m    });[m
+[32m+[m
+[32m+[m[32m    return map;[m
+[32m+[m[32m  }, [cities]);[m
+[32m+[m
+   const mugCountByCountryId = useMemo(() => {[m
+     const map = new Map();[m
+ [m
+     mugs.forEach((mug) => {[m
+[31m-      map.set(mug.country_id, (map.get(mug.country_id) ?? 0) + 1);[m
+[32m+[m[32m      const key = String(mug.country_id || "");[m
+[32m+[m[32m      if (!key) return;[m
+[32m+[m[32m      map.set(key, (map.get(key) ?? 0) + 1);[m
+     });[m
+ [m
+     return map;[m
+[36m@@ -186,9 +337,12 @@[m [mfunction AppContent() {[m
+     const map = new Map();[m
+ [m
+     mugs.forEach((mug) => {[m
+[31m-      const current = map.get(mug.country_id) ?? [];[m
+[32m+[m[32m      const key = String(mug.country_id || "");[m
+[32m+[m[32m      if (!key) return;[m
+[32m+[m
+[32m+[m[32m      const current = map.get(key) ?? [];[m
+       current.push(mug);[m
+[31m-      map.set(mug.country_id, current);[m
+[32m+[m[32m      map.set(key, current);[m
+     });[m
+ [m
+     return map;[m
+[36m@@ -198,7 +352,8 @@[m [mfunction AppContent() {[m
+     let count = 0;[m
+ [m
+     countries.forEach((country) => {[m
+[31m-      if ((mugCountByCountryId.get(country.id) ?? 0) > 0) {[m
+[32m+[m[32m      const mugCount = mugCountByCountryId.get(String(country.id)) ?? 0;[m
+[32m+[m[32m      if (mugCount > 0) {[m
+         count += 1;[m
+       }[m
+     });[m
+[36m@@ -207,7 +362,7 @@[m [mfunction AppContent() {[m
+   }, [countries, mugCountByCountryId]);[m
+ [m
+   const countriesWithStarbucksCount = useMemo(() => {[m
+[31m-    return countries.filter((country) => country.has_starbucks_current).length;[m
+[32m+[m[32m    return countries.filter((country) => !!country.has_starbucks_current).length;[m
+   }, [countries]);[m
+ [m
+   const globeCountryData = useMemo(() => {[m
+[36m@@ -221,91 +376,101 @@[m [mfunction AppContent() {[m
+       nameRu: country.name_ru || "",[m
+       nameEn: country.name_en || "",[m
+       hasStarbucks: !!country.has_starbucks_current,[m
+[31m-      mugsCount: mugCountByCountryId.get(country.id) ?? 0,[m
+[32m+[m[32m      mugsCount: mugCountByCountryId.get(String(country.id)) ?? 0,[m
+     }));[m
+   }, [countries, mugCountByCountryId, language]);[m
+ [m
+   const visibleCountryIso = selectedCountryIso || hoveredCountryIso;[m
+   const visibleCountryLabel = selectedCountryLabel || hoveredCountryLabel;[m
+ [m
+[31m-  const activeCountryRecord = visibleCountryIso[m
+[31m-    ? countriesByIso.get(visibleCountryIso) ?? null[m
+[31m-    : null;[m
+[32m+[m[32m  const activeCountryRecord = useMemo(() => {[m
+[32m+[m[32m    if (!visibleCountryIso) return null;[m
+[32m+[m[32m    return countriesByIso.get(visibleCountryIso) ?? null;[m
+[32m+[m[32m  }, [countriesByIso, visibleCountryIso]);[m
+ [m
+[31m-  const activeMugs = activeCountryRecord[m
+[31m-    ? mugsByCountryId.get(activeCountryRecord.id) ?? [][m
+[31m-    : [];[m
+[32m+[m[32m  const activeMugs = useMemo(() => {[m
+[32m+[m[32m    if (!activeCountryRecord) return [];[m
+[32m+[m[32m    return mugsByCountryId.get(String(activeCountryRecord.id)) ?? [];[m
+[32m+[m[32m  }, [activeCountryRecord, mugsByCountryId]);[m
+ [m
+[31m-  function handleCountryHover(arg1, arg2) {[m
+[31m-    const { iso, label } = extractCountryPayload(arg1, arg2);[m
+[31m-    setHoveredCountryIso(iso);[m
+[31m-    setHoveredCountryLabel(label);[m
+[31m-  }[m
+[32m+[m[32m  const peopleAdminLabel = language === "en" ? "People Admin" : "Люди: админка";[m
+ [m
+[31m-  function handleCountryClick(arg1, arg2) {[m
+[31m-    const { iso, label } = extractCountryPayload(arg1, arg2);[m
+[32m+[m[32m  const handleCountryHover = useCallback([m
+[32m+[m[32m    (payload) => {[m
+[32m+[m[32m      if (selectedCountryIso) {[m
+[32m+[m[32m        return;[m
+[32m+[m[32m      }[m
+ [m
+[31m-    const isSameSelection =[m
+[31m-      selectedCountryIso === iso && selectedCountryLabel === label;[m
+[32m+[m[32m      const { iso, label } = extractCountryPayload(payload);[m
+[32m+[m[32m      setHoveredCountryIso(iso);[m
+[32m+[m[32m      setHoveredCountryLabel(label);[m
+[32m+[m[32m    },[m
+[32m+[m[32m    [selectedCountryIso][m
+[32m+[m[32m  );[m
+ [m
+[31m-    if (isSameSelection) {[m
+[31m-      setSelectedCountryIso("");[m
+[31m-      setSelectedCountryLabel("");[m
+[31m-      return;[m
+[31m-    }[m
+[32m+[m[32m  const handleCountryClick = useCallback([m
+[32m+[m[32m    (payload) => {[m
+[32m+[m[32m      const { iso, label } = extractCountryPayload(payload);[m
+ [m
+[31m-    setSelectedCountryIso(iso);[m
+[31m-    setSelectedCountryLabel(label);[m
+[31m-  }[m
+[32m+[m[32m      if (!iso) {[m
+[32m+[m[32m        setSelectedCountryIso("");[m
+[32m+[m[32m        setSelectedCountryLabel("");[m
+[32m+[m[32m        setHoveredCountryIso("");[m
+[32m+[m[32m        setHoveredCountryLabel("");[m
+[32m+[m[32m        return;[m
+[32m+[m[32m      }[m
+[32m+[m
+[32m+[m[32m      const isSameSelection = selectedCountryIso === iso;[m
+[32m+[m
+[32m+[m[32m      if (isSameSelection) {[m
+[32m+[m[32m        setSelectedCountryIso("");[m
+[32m+[m[32m        setSelectedCountryLabel("");[m
+[32m+[m[32m        return;[m
+[32m+[m[32m      }[m
+ [m
+[31m-  function clearSelectedCountry() {[m
+[32m+[m[32m      setSelectedCountryIso(iso);[m
+[32m+[m[32m      setSelectedCountryLabel(label);[m
+[32m+[m[32m      setHoveredCountryIso("");[m
+[32m+[m[32m      setHoveredCountryLabel("");[m
+[32m+[m[32m    },[m
+[32m+[m[32m    [selectedCountryIso][m
+[32m+[m[32m  );[m
+[32m+[m
+[32m+[m[32m  const clearSelectedCountry = useCallback(() => {[m
+     setSelectedCountryIso("");[m
+     setSelectedCountryLabel("");[m
+[31m-  }[m
+[32m+[m[32m    setHoveredCountryIso("");[m
+[32m+[m[32m    setHoveredCountryLabel("");[m
+[32m+[m[32m  }, []);[m
+ [m
+[31m-  function getCountryDisplayName(country) {[m
+[31m-    if (!country) return "—";[m
+[32m+[m[32m  const getCountryDisplayName = useCallback([m
+[32m+[m[32m    (country) => {[m
+[32m+[m[32m      if (!country) return "—";[m
+ [m
+[31m-    return language === "en"[m
+[31m-      ? country.name_en || country.name_ru || country.iso2_code || "—"[m
+[31m-      : country.name_ru || country.name_en || country.iso2_code || "—";[m
+[31m-  }[m
+[32m+[m[32m      return language === "en"[m
+[32m+[m[32m        ? country.name_en || country.name_ru || country.iso2_code || "—"[m
+[32m+[m[32m        : country.name_ru || country.name_en || country.iso2_code || "—";[m
+[32m+[m[32m    },[m
+[32m+[m[32m    [language][m
+[32m+[m[32m  );[m
+ [m
+[31m-  function renderMap() {[m
+[31m-    const globeMapProps = {[m
+[31m-      countryData: globeCountryData,[m
+[31m-      selectedCountryCode: selectedCountryIso,[m
+[31m-      hoveredCountryCode: hoveredCountryIso,[m
+[31m-      onCountryHover: handleCountryHover,[m
+[31m-      onCountryClick: handleCountryClick,[m
+[31m-      isActive: true,[m
+[31m-    };[m
+[32m+[m[32m  const getMugCityText = useCallback([m
+[32m+[m[32m    (mug) => {[m
+[32m+[m[32m      if (!mug) return "—";[m
+ [m
+[31m-    return ([m
+[31m-      <div[m
+[31m-        style={{[m
+[31m-          position: "relative",[m
+[31m-          minHeight: 560,[m
+[31m-          height: "min(70vh, 760px)",[m
+[31m-          width: "100%",[m
+[31m-          overflow: "hidden",[m
+[31m-          borderRadius: "24px",[m
+[31m-          background: "#efe7dc",[m
+[31m-        }}[m
+[31m-      >[m
+[31m-        <div[m
+[31m-          style={{[m
+[31m-            position: "absolute",[m
+[31m-            inset: 0,[m
+[31m-          }}[m
+[31m-        >[m
+[31m-          <GlobeMapAsync {...globeMapProps} />[m
+[31m-        </div>[m
+[31m-      </div>[m
+[31m-    );[m
+[31m-  }[m
+[32m+[m[32m      const city = citiesById.get(String(mug.city_id || ""));[m
+[32m+[m[32m      if (city) {[m
+[32m+[m[32m        return language === "en"[m
+[32m+[m[32m          ? city.name_en || city.name_ru || mug.city || "—"[m
+[32m+[m[32m          : city.name_ru || city.name_en || mug.city || "—";[m
+[32m+[m[32m      }[m
+ [m
+[31m-  function renderLoading() {[m
+[32m+[m[32m      return mug.city || "—";[m
+[32m+[m[32m    },[m
+[32m+[m[32m    [citiesById, language][m
+[32m+[m[32m  );[m
+[32m+[m
+[32m+[m[32m  const renderLoading = useCallback(() => {[m
+     return ([m
+       <div className="card">[m
+         <div className="empty-state">[m
+[36m@@ -314,43 +479,56 @@[m [mfunction AppContent() {[m
+         </div>[m
+       </div>[m
+     );[m
+[31m-  }[m
+[32m+[m[32m  }, [t]);[m
+ [m
+[31m-  function renderError() {[m
+[32m+[m[32m  const renderError = useCallback(() => {[m
+     return ([m
+       <div className="card">[m
+         <div className="empty-state">[m
+           <h2>{t("errorTitle")}</h2>[m
+[31m-          <p>{error}</p>[m
+[32m+[m[32m          <p>{fatalError || t("errorText")}</p>[m
+[32m+[m[32m          <button[m
+[32m+[m[32m            type="button"[m
+[32m+[m[32m            className="secondary-button"[m
+[32m+[m[32m            onClick={loadData}[m
+[32m+[m[32m            style={{ marginTop: 16 }}[m
+[32m+[m[32m          >[m
+[32m+[m[32m            {t("retry")}[m
+[32m+[m[32m          </button>[m
+         </div>[m
+       </div>[m
+     );[m
+[31m-  }[m
+[32m+[m[32m  }, [fatalError, loadData, t]);[m
+ [m
+[31m-  return ([m
+[31m-    <div className="page">[m
+[31m-      <header[m
+[31m-        className="hero"[m
+[32m+[m[32m  const warningBanner =[m
+[32m+[m[32m    warningMessage && !loading && !fatalError ? ([m
+[32m+[m[32m      <div[m
+[32m+[m[32m        className="card"[m
+         style={{[m
+[31m-          position: "relative",[m
+[32m+[m[32m          padding: "14px 16px",[m
+[32m+[m[32m          border: "1px solid #f3d5a3",[m
+[32m+[m[32m          background: "#fff8ea",[m
+[32m+[m[32m          color: "#7a4b00",[m
+[32m+[m[32m          marginBottom: 16,[m
+         }}[m
+       >[m
+[31m-        <div[m
+[31m-          style={{[m
+[31m-            position: "absolute",[m
+[31m-            top: "24px",[m
+[31m-            right: "24px",[m
+[31m-            zIndex: 5,[m
+[31m-          }}[m
+[31m-        >[m
+[32m+[m[32m        {warningMessage}[m
+[32m+[m[32m      </div>[m
+[32m+[m[32m    ) : null;[m
+[32m+[m
+[32m+[m[32m  const isAdminView =[m
+[32m+[m[32m    currentView === "countries" ||[m
+[32m+[m[32m    currentView === "mugs" ||[m
+[32m+[m[32m    currentView === "people-admin";[m
+[32m+[m
+[32m+[m[32m  return ([m
+[32m+[m[32m    <div className="page">[m
+[32m+[m[32m      <header className="hero hero-with-language">[m
+[32m+[m[32m        <div className="hero-language-switch">[m
+           <LanguageSwitch />[m
+         </div>[m
+ [m
+[31m-        <div[m
+[31m-          style={{[m
+[31m-            paddingRight: "170px",[m
+[31m-          }}[m
+[31m-        >[m
+[32m+[m[32m        <div className="hero-main-content">[m
+           <p className="eyebrow">Khodar Starbucks Collection</p>[m
+           <h1>{t("heroTitle")}</h1>[m
+           <p className="hero-text">{t("heroText")}</p>[m
+[36m@@ -378,10 +556,12 @@[m [mfunction AppContent() {[m
+             <span className="legend-dot legend-dot-gray" />[m
+             <span>{t("legendNoStarbucks")}</span>[m
+           </div>[m
+[32m+[m
+           <div className="legend-item">[m
+             <span className="legend-dot legend-dot-light" />[m
+             <span>{t("legendStarbucksNoMugs")}</span>[m
+           </div>[m
+[32m+[m
+           <div className="legend-item">[m
+             <span className="legend-dot legend-dot-green" />[m
+             <span>{t("legendHasMugs")}</span>[m
+[36m@@ -413,6 +593,18 @@[m [mfunction AppContent() {[m
+             {t("catalog")}[m
+           </button>[m
+ [m
+[32m+[m[32m          <button[m
+[32m+[m[32m            className={[m
+[32m+[m[32m              currentView === "people"[m
+[32m+[m[32m                ? "view-switch-button active"[m
+[32m+[m[32m                : "view-switch-button"[m
+[32m+[m[32m            }[m
+[32m+[m[32m            onClick={() => setCurrentView("people")}[m
+[32m+[m[32m            type="button"[m
+[32m+[m[32m          >[m
+[32m+[m[32m            {t("people")}[m
+[32m+[m[32m          </button>[m
+[32m+[m
+           <button[m
+             className={[m
+               currentView === "countries"[m
+[36m@@ -436,159 +628,225 @@[m [mfunction AppContent() {[m
+           >[m
+             {t("mugs")}[m
+           </button>[m
+[32m+[m
+[32m+[m[32m          <button[m
+[32m+[m[32m            className={[m
+[32m+[m[32m              currentView === "people-admin"[m
+[32m+[m[32m                ? "view-switch-button active"[m
+[32m+[m[32m                : "view-switch-button"[m
+[32m+[m[32m            }[m
+[32m+[m[32m            onClick={() => setCurrentView("people-admin")}[m
+[32m+[m[32m            type="button"[m
+[32m+[m[32m          >[m
+[32m+[m[32m            {peopleAdminLabel}[m
+[32m+[m[32m          </button>[m
+         </div>[m
+       </header>[m
+ [m
+[31m-      {currentView === "countries" ? ([m
+[31m-        <CountriesAdmin onChanged={loadData} />[m
+[31m-      ) : currentView === "mugs" ? ([m
+[31m-        <MugsAdmin onChanged={loadData} />[m
+[31m-      ) : currentView === "catalog" ? ([m
+[31m-        loading ? ([m
+[31m-          renderLoading()[m
+[31m-        ) : error ? ([m
+[31m-          renderError()[m
+[32m+[m[32m      {isAdminView ? ([m
+[32m+[m[32m        currentView === "countries" ? ([m
+[32m+[m[32m          <CountriesAdmin onChanged={loadData} />[m
+[32m+[m[32m        ) : currentView === "mugs" ? ([m
+[32m+[m[32m          <MugsAdmin onChanged={loadData} />[m
+         ) : ([m
+[31m-          <CatalogPage[m
+[31m-            mugs={mugs}[m
+[31m-            countries={countries}[m
+[31m-            selectedCountryIso={selectedCountryIso}[m
+[31m-            selectedCountryLabel={selectedCountryLabel}[m
+[31m-          />[m
+[32m+[m[32m          <PeopleAdmin onChanged={loadData} />[m
+         )[m
+       ) : loading ? ([m
+         renderLoading()[m
+[31m-      ) : error ? ([m
+[32m+[m[32m      ) : fatalError ? ([m
+         renderError()[m
+       ) : ([m
+[31m-        <main className="layout">[m
+[31m-          <section className="card map-card">[m
+[31m-            <div[m
+[31m-              style={{[m
+[31m-                display: "flex",[m
+[31m-                alignItems: "center",[m
+[31m-                justifyContent: "space-between",[m
+[31m-                gap: "12px",[m
+[31m-                flexWrap: "wrap",[m
+[31m-                marginBottom: "12px",[m
+[31m-              }}[m
+[31m-            >[m
+[31m-              <div className="section-title">{t("globe3d")}</div>[m
+[31m-            </div>[m
+[31m-[m
+[31m-            {renderMap()}[m
+[31m-          </section>[m
+[31m-[m
+[31m-          <aside className="card side-card">[m
+[31m-            {!visibleCountryLabel ? ([m
+[31m-              <div className="empty-state">[m
+[31m-                <h2>{t("hoverCountryTitle")}</h2>[m
+[31m-                <p>{t("hoverCountryText")}</p>[m
+[31m-              </div>[m
+[31m-            ) : !activeCountryRecord ? ([m
+[31m-              <div className="empty-state">[m
+[31m-                <h2>{visibleCountryLabel}</h2>[m
+[31m-                <p>{t("countryNotMatched")}</p>[m
+[31m-              </div>[m
+[31m-            ) : ([m
+[31m-              <>[m
+[31m-                <div className="section-title">[m
+[31m-                  {getCountryDisplayName(activeCountryRecord)}[m
+[31m-                </div>[m
+[31m-[m
+[31m-                <div className="country-panel-actions">[m
+[31m-                  {selectedCountryLabel ? ([m
+[31m-                    <>[m
+[31m-                      <span className="selection-badge">{t("selectedCountry")}</span>[m
+[31m-                      <button[m
+[31m-                        className="secondary-button"[m
+[31m-                        onClick={clearSelectedCountry}[m
+[31m-                        type="button"[m
+[31m-                      >[m
+[31m-                        {t("clearSelection")}[m
+[31m-                      </button>[m
+[31m-                    </>[m
+[31m-                  ) : ([m
+[31m-                    <span className="selection-hint">{t("hoverHint")}</span>[m
+[31m-                  )}[m
+[32m+[m[32m        <>[m
+[32m+[m[32m          {warningBanner}[m
+[32m+[m
+[32m+[m[32m          <div style={{ display: currentView === "map" ? "block" : "none" }}>[m
+[32m+[m[32m            <main className="layout">[m
+[32m+[m[32m              <section className="card map-card">[m
+[32m+[m[32m                <div[m
+[32m+[m[32m                  style={{[m
+[32m+[m[32m                    display: "flex",[m
+[32m+[m[32m                    alignItems: "center",[m
+[32m+[m[32m                    justifyContent: "space-between",[m
+[32m+[m[32m                    gap: "12px",[m
+[32m+[m[32m                    flexWrap: "wrap",[m
+[32m+[m[32m                    marginBottom: "12px",[m
+[32m+[m[32m                  }}[m
+[32m+[m[32m                >[m
+[32m+[m[32m                  <div className="section-title">{t("globe3d")}</div>[m
+                 </div>[m
+ [m
+[31m-                <div className="country-status-block">[m
+[31m-                  <div className="status-row">[m
+[31m-                    <span className="status-label">{t("iso")}:</span>[m
+[31m-                    <span className="status-value">[m
+[31m-                      {activeCountryRecord.iso2_code || "—"}[m
+[31m-                    </span>[m
+[31m-                  </div>[m
+[31m-[m
+[31m-                  <div className="status-row">[m
+[31m-                    <span className="status-label">{t("starbucks")}:</span>[m
+[31m-                    <span[m
+[31m-                      className={[m
+[31m-                        activeCountryRecord.has_starbucks_current[m
+[31m-                          ? "status-badge status-badge-light"[m
+[31m-                          : "status-badge status-badge-gray"[m
+[32m+[m[32m                <div[m
+[32m+[m[32m                  style={{[m
+[32m+[m[32m                    position: "relative",[m
+[32m+[m[32m                    minHeight: 560,[m
+[32m+[m[32m                    height: "min(70vh, 760px)",[m
+[32m+[m[32m                    width: "100%",[m
+[32m+[m[32m                    overflow: "hidden",[m
+[32m+[m[32m                    borderRadius: "24px",[m
+[32m+[m[32m                    background: "#efe7dc",[m
+[32m+[m[32m                  }}[m
+[32m+[m[32m                >[m
+[32m+[m[32m                  <div style={{ position: "absolute", inset: 0 }}>[m
+[32m+[m[32m                    <GlobeMapAsync[m
+[32m+[m[32m                      countryData={globeCountryData}[m
+[32m+[m[32m                      selectedCountryCode={selectedCountryIso}[m
+[32m+[m[32m                      hoveredCountryCode={[m
+[32m+[m[32m                        selectedCountryIso ? "" : hoveredCountryIso[m
+                       }[m
+[31m-                    >[m
+[31m-                      {activeCountryRecord.has_starbucks_current[m
+[31m-                        ? t("yes")[m
+[31m-                        : t("no")}[m
+[31m-                    </span>[m
+[31m-                  </div>[m
+[31m-[m
+[31m-                  <div className="status-row">[m
+[31m-                    <span className="status-label">{t("mugsInCollection")}:</span>[m
+[31m-                    <span className="status-value">{activeMugs.length}</span>[m
+[32m+[m[32m                      onCountryHover={handleCountryHover}[m
+[32m+[m[32m                      onCountryClick={handleCountryClick}[m
+[32m+[m[32m                      isActive={currentView === "map"}[m
+[32m+[m[32m                    />[m
+                   </div>[m
+                 </div>[m
+[32m+[m[32m              </section>[m
+ [m
+[31m-                {activeMugs.length === 0 ? ([m
+[32m+[m[32m              <aside className="card side-card">[m
+[32m+[m[32m                {!visibleCountryLabel ? ([m
+                   <div className="empty-state">[m
+[31m-                    {activeCountryRecord.has_starbucks_current ? ([m
+[31m-                      <p>{t("noMugsButStarbucks")}</p>[m
+[31m-                    ) : ([m
+[31m-                      <p>{t("noStarbucksNow")}</p>[m
+[31m-                    )}[m
+[32m+[m[32m                    <h2>{t("hoverCountryTitle")}</h2>[m
+[32m+[m[32m                    <p>{t("hoverCountryText")}</p>[m
+[32m+[m[32m                  </div>[m
+[32m+[m[32m                ) : !activeCountryRecord ? ([m
+[32m+[m[32m                  <div className="empty-state">[m
+[32m+[m[32m                    <h2>{visibleCountryLabel}</h2>[m
+[32m+[m[32m                    <p>{t("countryNotMatched")}</p>[m
+                   </div>[m
+                 ) : ([m
+[31m-                  <div className="side-scroll-area">[m
+[31m-                    <div className="mug-list">[m
+[31m-                      {activeMugs.map((mug) => ([m
+[31m-                        <article className="mug-card" key={mug.id}>[m
+[31m-                          <MugCarousel[m
+[31m-                            images={mug.mug_images || []}[m
+[31m-                            fallbackAlt={mug.title}[m
+[31m-                          />[m
+[31m-[m
+[31m-                          <div className="mug-content">[m
+[31m-                            <h3>{mug.title}</h3>[m
+[31m-                            <p>[m
+[31m-                              <strong>{t("city")}:</strong> {mug.city || "—"}[m
+[31m-                            </p>[m
+[31m-                            <p>[m
+[31m-                              <strong>{t("type")}:</strong> {mug.mug_type || "—"}[m
+[31m-                            </p>[m
+[31m-                            <p>[m
+[31m-                              <strong>{t("receivedAt")}:</strong>{" "}[m
+[31m-                              {formatDate(mug.received_at)}[m
+[31m-                            </p>[m
+[31m-                            <p>[m
+[31m-                              <strong>{t("broughtBy")}:</strong>{" "}[m
+[31m-                              {mug.brought_by || "—"}[m
+[31m-                            </p>[m
+[31m-                            <p>[m
+[31m-                              <strong>{t("note")}:</strong> {mug.note || "—"}[m
+[31m-                            </p>[m
+[31m-                          </div>[m
+[31m-                        </article>[m
+[31m-                      ))}[m
+[32m+[m[32m                  <>[m
+[32m+[m[32m                    <div className="section-title">[m
+[32m+[m[32m                      {getCountryDisplayName(activeCountryRecord)}[m
+                     </div>[m
+[31m-                  </div>[m
+[32m+[m
+[32m+[m[32m                    <div className="country-panel-actions">[m
+[32m+[m[32m                      {selectedCountryLabel ? ([m
+[32m+[m[32m                        <>[m
+[32m+[m[32m                          <span className="selection-badge">[m
+[32m+[m[32m                            {t("selectedCountry")}[m
+[32m+[m[32m                          </span>[m
+[32m+[m
+[32m+[m[32m                          <button[m
+[32m+[m[32m                            className="secondary-button"[m
+[32m+[m[32m                            onClick={clearSelectedCountry}[m
+[32m+[m[32m                            type="button"[m
+[32m+[m[32m                          >[m
+[32m+[m[32m                            {t("clearSelection")}[m
+[32m+[m[32m                          </button>[m
+[32m+[m[32m                        </>[m
+[32m+[m[32m                      ) : ([m
+[32m+[m[32m                        <span className="selection-hint">{t("hoverHint")}</span>[m
+[32m+[m[32m                      )}[m
+[32m+[m[32m                    </div>[m
+[32m+[m
+[32m+[m[32m                    <div className="country-status-block">[m
+[32m+[m[32m                      <div className="status-row">[m
+[32m+[m[32m                        <span className="status-label">{t("iso")}:</span>[m
+[32m+[m[32m                        <span className="status-value">[m
+[32m+[m[32m                          {activeCountryRecord.iso2_code || "—"}[m
+[32m+[m[32m                        </span>[m
+[32m+[m[32m                      </div>[m
+[32m+[m
+[32m+[m[32m                      <div className="status-row">[m
+[32m+[m[32m                        <span className="status-label">{t("starbucks")}:</span>[m
+[32m+[m[32m                        <span[m
+[32m+[m[32m                          className={[m
+[32m+[m[32m                            activeCountryRecord.has_starbucks_current[m
+[32m+[m[32m                              ? "status-badge status-badge-light"[m
+[32m+[m[32m                              : "status-badge status-badge-gray"[m
+[32m+[m[32m                          }[m
+[32m+[m[32m                        >[m
+[32m+[m[32m                          {activeCountryRecord.has_starbucks_current[m
+[32m+[m[32m                            ? t("yes")[m
+[32m+[m[32m                            : t("no")}[m
+[32m+[m[32m                        </span>[m
+[32m+[m[32m                      </div>[m
+[32m+[m
+[32m+[m[32m                      <div className="status-row">[m
+[32m+[m[32m                        <span className="status-label">[m
+[32m+[m[32m                          {t("mugsInCollection")}:[m
+[32m+[m[32m                        </span>[m
+[32m+[m[32m                        <span className="status-value">{activeMugs.length}</span>[m
+[32m+[m[32m                      </div>[m
+[32m+[m[32m                    </div>[m
+[32m+[m
+[32m+[m[32m                    {activeMugs.length === 0 ? ([m
+[32m+[m[32m                      <div className="empty-state">[m
+[32m+[m[32m                        {activeCountryRecord.has_starbucks_current ? ([m
+[32m+[m[32m                          <p>{t("noMugsButStarbucks")}</p>[m
+[32m+[m[32m                        ) : ([m
+[32m+[m[32m                          <p>{t("noStarbucksNow")}</p>[m
+[32m+[m[32m                        )}[m
+[32m+[m[32m                      </div>[m
+[32m+[m[32m                    ) : ([m
+[32m+[m[32m                      <div className="side-scroll-area">[m
+[32m+[m[32m                        <div className="mug-list">[m
+[32m+[m[32m                          {activeMugs.map((mug) => ([m
+[32m+[m[32m                            <article className="mug-card" key={mug.id}>[m
+[32m+[m[32m                              <MugCarousel[m
+[32m+[m[32m                                images={mug.mug_images || []}[m
+[32m+[m[32m                                fallbackAlt={mug.title}[m
+[32m+[m[32m                              />[m
+[32m+[m
+[32m+[m[32m                              <div className="mug-content">[m
+[32m+[m[32m                                <h3>{mug.title}</h3>[m
+[32m+[m
+[32m+[m[32m                                <p>[m
+[32m+[m[32m                                  <strong>{t("city")}:</strong>{" "}[m
+[32m+[m[32m                                  {getMugCityText(mug)}[m
+[32m+[m[32m                                </p>[m
+[32m+[m
+[32m+[m[32m                                <p>[m
+[32m+[m[32m                                  <strong>{t("type")}:</strong>{" "}[m
+[32m+[m[32m                                  {mug.mug_type || "—"}[m
+[32m+[m[32m                                </p>[m
+[32m+[m
+[32m+[m[32m                                <p>[m
+[32m+[m[32m                                  <strong>{t("receivedAt")}:</strong>{" "}[m
+[32m+[m[32m                                  {formatDate(mug.received_at)}[m
+[32m+[m[32m                                </p>[m
+[32m+[m
+[32m+[m[32m                                <p>[m
+[32m+[m[32m                                  <strong>{t("broughtBy")}:</strong>{" "}[m
+[32m+[m[32m                                  {mug.brought_by || "—"}[m
+[32m+[m[32m                                </p>[m
+[32m+[m
+[32m+[m[32m                                <p>[m
+[32m+[m[32m                                  <strong>{t("note")}:</strong>{" "}[m
+[32m+[m[32m                                  {mug.note || "—"}[m
+[32m+[m[32m                                </p>[m
+[32m+[m[32m                              </div>[m
+[32m+[m[32m                            </article>[m
+[32m+[m[32m                          ))}[m
+[32m+[m[32m                        </div>[m
+[32m+[m[32m                      </div>[m
+[32m+[m[32m                    )}[m
+[32m+[m[32m                  </>[m
+                 )}[m
+[31m-              </>[m
+[31m-            )}[m
+[31m-          </aside>[m
+[31m-        </main>[m
+[32m+[m[32m              </aside>[m
+[32m+[m[32m            </main>[m
+[32m+[m[32m          </div>[m
+[32m+[m
+[32m+[m[32m          <div style={{ display: currentView === "catalog" ? "block" : "none" }}>[m
+[32m+[m[32m            <CatalogPage[m
+[32m+[m[32m              mugs={mugs}[m
+[32m+[m[32m              countries={countries}[m
+[32m+[m[32m              cities={cities}[m
+[32m+[m[32m              people={people}[m
+[32m+[m[32m              selectedCountryIso={selectedCountryIso}[m
+[32m+[m[32m              selectedCountryLabel={selectedCountryLabel}[m
+[32m+[m[32m              language={language}[m
+[32m+[m[32m            />[m
+[32m+[m[32m          </div>[m
+[32m+[m
+[32m+[m[32m          <div style={{ display: currentView === "people" ? "block" : "none" }}>[m
+[32m+[m[32m            <PeopleVisualization[m
+[32m+[m[32m              mugs={mugs}[m
+[32m+[m[32m              countries={countries}[m
+[32m+[m[32m              cities={cities}[m
+[32m+[m[32m              people={people}[m
+[32m+[m[32m            />[m
+[32m+[m[32m          </div>[m
+[32m+[m[32m        </>[m
+       )}[m
+     </div>[m
+   );[m
+[36m@@ -597,7 +855,9 @@[m [mfunction AppContent() {[m
+ function App() {[m
+   return ([m
+     <LanguageProvider>[m
+[31m-      <AppContent />[m
+[32m+[m[32m      <ErrorBoundary>[m
+[32m+[m[32m        <AppContent />[m
+[32m+[m[32m      </ErrorBoundary>[m
+     </LanguageProvider>[m
+   );[m
+ }[m
+[1mdiff --git a/src/components/GlobeMap.jsx b/src/components/GlobeMap.jsx[m
+[1mindex 5f7509b..6a258b2 100644[m
+[1m--- a/src/components/GlobeMap.jsx[m
+[1m+++ b/src/components/GlobeMap.jsx[m
+[36m@@ -21,9 +21,13 @@[m [mconst COLORS = {[m
+ [m
+ const GEOJSON_SOURCES = [[m
+   "/data/ne_110m_admin_0_countries.geojson",[m
+[32m+[m[32m  "/maps/ne_110m_admin_0_countries.geojson",[m
+   "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson",[m
+ ];[m
+ [m
+[32m+[m[32mlet worldGeoJsonCache = null;[m
+[32m+[m[32mlet worldGeoJsonPromise = null;[m
+[32m+[m
+ function normalizeCode(value) {[m
+   return String(value || "").trim().toUpperCase();[m
+ }[m
+[36m@@ -42,14 +46,7 @@[m [mfunction normalizeName(value) {[m
+ [m
+ function getFeatureCode(feature) {[m
+   const p = feature?.properties || {};[m
+[31m-[m
+[31m-  const iso2 =[m
+[31m-    p.ISO_A2 ||[m
+[31m-    p.iso_a2 ||[m
+[31m-    p.WB_A2 ||[m
+[31m-    p.iso2 ||[m
+[31m-    p.ISO2 ||[m
+[31m-    feature?.id;[m
+[32m+[m[32m  const iso2 = p.ISO_A2 || p.iso_a2 || p.WB_A2 || p.iso2 || p.ISO2 || feature?.id;[m
+ [m
+   if (iso2 && String(iso2).length === 2) {[m
+     return normalizeCode(iso2);[m
+[36m@@ -60,7 +57,6 @@[m [mfunction getFeatureCode(feature) {[m
+ [m
+ function getFeatureName(feature) {[m
+   const p = feature?.properties || {};[m
+[31m-[m
+   return ([m
+     p.ADMIN ||[m
+     p.NAME ||[m
+[36m@@ -75,29 +71,49 @@[m [mfunction getFeatureName(feature) {[m
+ }[m
+ [m
+ async function loadWorldGeoJson() {[m
+[31m-  let lastError = null;[m
+[32m+[m[32m  if (worldGeoJsonCache) {[m
+[32m+[m[32m    return worldGeoJsonCache;[m
+[32m+[m[32m  }[m
+ [m
+[31m-  for (const url of GEOJSON_SOURCES) {[m
+[31m-    try {[m
+[31m-      const response = await fetch(url, { cache: "force-cache" });[m
+[32m+[m[32m  if (worldGeoJsonPromise) {[m
+[32m+[m[32m    return worldGeoJsonPromise;[m
+[32m+[m[32m  }[m
+ [m
+[31m-      if (!response.ok) {[m
+[31m-        throw new Error(`HTTP ${response.status}`);[m
+[31m-      }[m
+[32m+[m[32m  worldGeoJsonPromise = (async () => {[m
+[32m+[m[32m    let lastError = null;[m
+[32m+[m
+[32m+[m[32m    for (const url of GEOJSON_SOURCES) {[m
+[32m+[m[32m      try {[m
+[32m+[m[32m        const response = await fetch(url, { cache: "force-cache" });[m
+[32m+[m
+[32m+[m[32m        if (!response.ok) {[m
+[32m+[m[32m          throw new Error(`HTTP ${response.status}`);[m
+[32m+[m[32m        }[m
+ [m
+[31m-      const json = await response.json();[m
+[32m+[m[32m        const json = await response.json();[m
+ [m
+[31m-      if (json?.features?.length) {[m
+[31m-        return json;[m
+[32m+[m[32m        if (json?.features?.length) {[m
+[32m+[m[32m          worldGeoJsonCache = json;[m
+[32m+[m[32m          return json;[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        throw new Error("GeoJSON is empty");[m
+[32m+[m[32m      } catch (error) {[m
+[32m+[m[32m        lastError = error;[m
+[32m+[m[32m        console.error("[GlobeMap] GeoJSON source failed:", url, error);[m
+       }[m
+[32m+[m[32m    }[m
+ [m
+[31m-      throw new Error("GeoJSON is empty");[m
+[31m-    } catch (error) {[m
+[31m-      lastError = error;[m
+[32m+[m[32m    throw lastError || new Error("Не удалось загрузить GeoJSON мира");[m
+[32m+[m[32m  })();[m
+[32m+[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    return await worldGeoJsonPromise;[m
+[32m+[m[32m  } finally {[m
+[32m+[m[32m    if (!worldGeoJsonCache) {[m
+[32m+[m[32m      worldGeoJsonPromise = null;[m
+     }[m
+   }[m
+[31m-[m
+[31m-  throw lastError || new Error("Не удалось загрузить GeoJSON мира");[m
+ }[m
+ [m
+ function buildCountryIndexes(countryData) {[m
+[36m@@ -105,13 +121,18 @@[m [mfunction buildCountryIndexes(countryData) {[m
+   const byName = new Map();[m
+ [m
+   (countryData || []).forEach((item) => {[m
+[31m-    const code = normalizeCode(item.code);[m
+[32m+[m[32m    const code = normalizeCode([m
+[32m+[m[32m      item.code || item.iso2_code || item.iso2 || item.country_code[m
+[32m+[m[32m    );[m
+[32m+[m
+     const names = [[m
+       item.name,[m
+       item.nameEn,[m
+       item.nameRu,[m
+       item.label,[m
+       item.countryName,[m
+[32m+[m[32m      item.name_en,[m
+[32m+[m[32m      item.name_ru,[m
+     ][m
+       .filter(Boolean)[m
+       .map(normalizeName);[m
+[36m@@ -139,7 +160,6 @@[m [mfunction resolveCountryRecord(feature, indexes) {[m
+   }[m
+ [m
+   const normalizedName = normalizeName(name);[m
+[31m-[m
+   if (normalizedName && indexes.byName.has(normalizedName)) {[m
+     return indexes.byName.get(normalizedName);[m
+   }[m
+[36m@@ -180,28 +200,26 @@[m [mfunction GlobeMap({[m
+   const globeRef = useRef(null);[m
+ [m
+   const [size, setSize] = useState({ width: 1000, height: 700 });[m
+[31m-  const [worldGeoJson, setWorldGeoJson] = useState(null);[m
+[32m+[m[32m  const [worldGeoJson, setWorldGeoJson] = useState(worldGeoJsonCache);[m
+   const [geoError, setGeoError] = useState("");[m
+[31m-  const [geoLoaded, setGeoLoaded] = useState(false);[m
+[31m-  const [globeReady, setGlobeReady] = useState(false);[m
+[31m-  const [showLoader, setShowLoader] = useState(true);[m
+[31m-  const [statusText, setStatusText] = useState("Подгружаем карту стран…");[m
+[31m-[m
+[31m-  const countryIndexes = useMemo([m
+[31m-    () => buildCountryIndexes(countryData),[m
+[31m-    [countryData][m
+[32m+[m[32m  const [showLoader, setShowLoader] = useState(!worldGeoJsonCache);[m
+[32m+[m[32m  const [statusText, setStatusText] = useState([m
+[32m+[m[32m    worldGeoJsonCache ? "Почти готово…" : "Подгружаем карту стран…"[m
+   );[m
+ [m
+[32m+[m[32m  const countryIndexes = useMemo(() => {[m
+[32m+[m[32m    return buildCountryIndexes(countryData);[m
+[32m+[m[32m  }, [countryData]);[m
+[32m+[m
+   const polygonsData = useMemo(() => {[m
+     return worldGeoJson?.features ?? [];[m
+   }, [worldGeoJson]);[m
+ [m
+   const globeMaterial = useMemo(() => {[m
+[31m-    const material = new THREE.MeshPhongMaterial({[m
+[32m+[m[32m    return new THREE.MeshPhongMaterial({[m
+       color: COLORS.globe,[m
+       shininess: 0.2,[m
+     });[m
+[31m-    return material;[m
+   }, []);[m
+ [m
+   useEffect(() => {[m
+[36m@@ -211,7 +229,6 @@[m [mfunction GlobeMap({[m
+ [m
+     const updateSize = () => {[m
+       const rect = element.getBoundingClientRect();[m
+[31m-[m
+       setSize({[m
+         width: Math.max(320, Math.round(rect.width || 1000)),[m
+         height: Math.max(420, Math.round(rect.height || 700)),[m
+[36m@@ -220,10 +237,7 @@[m [mfunction GlobeMap({[m
+ [m
+     updateSize();[m
+ [m
+[31m-    const observer = new ResizeObserver(() => {[m
+[31m-      updateSize();[m
+[31m-    });[m
+[31m-[m
+[32m+[m[32m    const observer = new ResizeObserver(updateSize);[m
+     observer.observe(element);[m
+ [m
+     return () => observer.disconnect();[m
+[36m@@ -232,21 +246,37 @@[m [mfunction GlobeMap({[m
+   useEffect(() => {[m
+     let cancelled = false;[m
+ [m
+[31m-    setGeoLoaded(false);[m
+[32m+[m[32m    if (worldGeoJsonCache) {[m
+[32m+[m[32m      setWorldGeoJson(worldGeoJsonCache);[m
+[32m+[m[32m      setShowLoader(false);[m
+[32m+[m[32m      setStatusText("Почти готово…");[m
+[32m+[m
+[32m+[m[32m      return () => {[m
+[32m+[m[32m        cancelled = true;[m
+[32m+[m[32m      };[m
+[32m+[m[32m    }[m
+[32m+[m
+     setGeoError("");[m
+[31m-    setStatusText("Подгружаем карту стран…");[m
+     setShowLoader(true);[m
+[32m+[m[32m    setStatusText("Подгружаем карту стран…");[m
+ [m
+     loadWorldGeoJson()[m
+       .then((json) => {[m
+         if (cancelled) return;[m
+[32m+[m
+         setWorldGeoJson(json);[m
+[31m-        setGeoLoaded(true);[m
+[31m-        setStatusText("Подготавливаем глобус…");[m
+[32m+[m[32m        setStatusText("Почти готово…");[m
+[32m+[m
+[32m+[m[32m        window.setTimeout(() => {[m
+[32m+[m[32m          if (!cancelled) {[m
+[32m+[m[32m            setShowLoader(false);[m
+[32m+[m[32m          }[m
+[32m+[m[32m        }, 120);[m
+       })[m
+       .catch((error) => {[m
+         if (cancelled) return;[m
+[31m-        console.error("Ошибка загрузки GeoJSON:", error);[m
+[32m+[m
+[32m+[m[32m        console.error("[GlobeMap] GeoJSON load error:", error);[m
+         setGeoError([m
+           "Не удалось загрузить границы стран для 3D-глобуса. Проверьте сеть или путь к GeoJSON."[m
+         );[m
+[36m@@ -259,69 +289,47 @@[m [mfunction GlobeMap({[m
+   }, []);[m
+ [m
+   useEffect(() => {[m
+[31m-    if (geoError) return;[m
+[31m-    if (!geoLoaded || !globeReady) return;[m
+[31m-[m
+[31m-    setStatusText("Почти готово…");[m
+[31m-[m
+[31m-    let raf1 = 0;[m
+[31m-    let raf2 = 0;[m
+[31m-    let timer = 0;[m
+[31m-[m
+[31m-    raf1 = requestAnimationFrame(() => {[m
+[31m-      raf2 = requestAnimationFrame(() => {[m
+[31m-        timer = window.setTimeout(() => {[m
+[31m-          setShowLoader(false);[m
+[31m-        }, 250);[m
+[31m-      });[m
+[31m-    });[m
+[31m-[m
+[31m-    return () => {[m
+[31m-      cancelAnimationFrame(raf1);[m
+[31m-      cancelAnimationFrame(raf2);[m
+[31m-      clearTimeout(timer);[m
+[31m-    };[m
+[31m-  }, [geoLoaded, globeReady, geoError]);[m
+[31m-[m
+[31m-  const handleGlobeReady = useCallback(() => {[m
+[31m-    const globe = globeRef.current;[m
+[31m-    if (!globe) return;[m
+[31m-[m
+[31m-    const controls = globe.controls?.();[m
+[31m-[m
+[31m-    if (controls) {[m
+[31m-      controls.enableDamping = true;[m
+[31m-      controls.dampingFactor = 0.08;[m
+[31m-      controls.rotateSpeed = 0.85;[m
+[31m-      controls.zoomSpeed = 0.95;[m
+[31m-      controls.panSpeed = 0.8;[m
+[31m-      controls.minDistance = 130;[m
+[31m-      controls.maxDistance = 420;[m
+[31m-    }[m
+[31m-[m
+[31m-    globe.pointOfView([m
+[31m-      {[m
+[31m-        lat: 18,[m
+[31m-        lng: 15,[m
+[31m-        altitude: 1.9,[m
+[31m-      },[m
+[31m-      0[m
+[31m-    );[m
+[32m+[m[32m    if (!worldGeoJson || !globeRef.current) return;[m
+[32m+[m
+[32m+[m[32m    const timer = window.setTimeout(() => {[m
+[32m+[m[32m      try {[m
+[32m+[m[32m        const globe = globeRef.current;[m
+[32m+[m[32m        const controls = globe?.controls?.();[m
+[32m+[m
+[32m+[m[32m        if (controls) {[m
+[32m+[m[32m          controls.enableDamping = true;[m
+[32m+[m[32m          controls.dampingFactor = 0.08;[m
+[32m+[m[32m          controls.rotateSpeed = 0.85;[m
+[32m+[m[32m          controls.zoomSpeed = 0.95;[m
+[32m+[m[32m          controls.panSpeed = 0.8;[m
+[32m+[m[32m          controls.minDistance = 130;[m
+[32m+[m[32m          controls.maxDistance = 420;[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        globe?.pointOfView([m
+[32m+[m[32m          {[m
+[32m+[m[32m            lat: 18,[m
+[32m+[m[32m            lng: 15,[m
+[32m+[m[32m            altitude: 1.9,[m
+[32m+[m[32m          },[m
+[32m+[m[32m          0[m
+[32m+[m[32m        );[m
+[32m+[m[32m      } catch (error) {[m
+[32m+[m[32m        console.error("[GlobeMap] setup error:", error);[m
+[32m+[m[32m      }[m
+[32m+[m[32m    }, 50);[m
+ [m
+[31m-    setGlobeReady(true);[m
+[31m-  }, []);[m
+[32m+[m[32m    return () => window.clearTimeout(timer);[m
+[32m+[m[32m  }, [worldGeoJson]);[m
+ [m
+   const polygonCapColor = useCallback([m
+     (feature) => {[m
+       const record = resolveCountryRecord(feature, countryIndexes);[m
+       const resolvedCode = normalizeCode([m
+[31m-        record?.code || getFeatureCode(feature) || ""[m
+[32m+[m[32m        record?.code || record?.iso2_code || getFeatureCode(feature) || ""[m
+       );[m
+ [m
+[31m-      if ([m
+[31m-        resolvedCode &&[m
+[31m-        resolvedCode === normalizeCode(selectedCountryCode || "")[m
+[31m-      ) {[m
+[32m+[m[32m      if (resolvedCode && resolvedCode === normalizeCode(selectedCountryCode || "")) {[m
+         return COLORS.selected;[m
+       }[m
+ [m
+[36m@@ -334,24 +342,19 @@[m [mfunction GlobeMap({[m
+     [countryIndexes, selectedCountryCode][m
+   );[m
+ [m
+[31m-  const polygonSideColor = useCallback(() => COLORS.side, []);[m
+[31m-  const polygonStrokeColor = useCallback(() => COLORS.stroke, []);[m
+[31m-[m
+   const polygonAltitude = useCallback([m
+     (feature) => {[m
+       const record = resolveCountryRecord(feature, countryIndexes);[m
+       const resolvedCode = normalizeCode([m
+[31m-        record?.code || getFeatureCode(feature) || ""[m
+[32m+[m[32m        record?.code || record?.iso2_code || getFeatureCode(feature) || ""[m
+       );[m
+ [m
+[31m-      if ([m
+[31m-        resolvedCode &&[m
+[31m-        resolvedCode === normalizeCode(selectedCountryCode || "")[m
+[31m-      ) {[m
+[32m+[m[32m      if (resolvedCode && resolvedCode === normalizeCode(selectedCountryCode || "")) {[m
+         return 0.03;[m
+       }[m
+ [m
+       if ([m
+[32m+[m[32m        !selectedCountryCode &&[m
+         resolvedCode &&[m
+         resolvedCode === normalizeCode(hoveredCountryCode || "")[m
+       ) {[m
+[36m@@ -367,9 +370,18 @@[m [mfunction GlobeMap({[m
+     (feature) => {[m
+       const record = resolveCountryRecord(feature, countryIndexes);[m
+       const fallbackName = getFeatureName(feature);[m
+[32m+[m
+       const name =[m
+[31m-        record?.nameRu || record?.name || record?.nameEn || fallbackName;[m
+[31m-      const code = record?.code || getFeatureCode(feature) || "—";[m
+[32m+[m[32m        record?.nameRu ||[m
+[32m+[m[32m        record?.name_ru ||[m
+[32m+[m[32m        record?.name ||[m
+[32m+[m[32m        record?.nameEn ||[m
+[32m+[m[32m        record?.name_en ||[m
+[32m+[m[32m        fallbackName;[m
+[32m+[m
+[32m+[m[32m      const code =[m
+[32m+[m[32m        record?.code || record?.iso2_code || getFeatureCode(feature) || "—";[m
+[32m+[m
+       const { hasStarbucks, mugsCount } = getCountryState(record);[m
+ [m
+       return `[m
+[36m@@ -389,22 +401,23 @@[m [mfunction GlobeMap({[m
+       if (!onCountryHover) return;[m
+ [m
+       if (!feature) {[m
+[31m-        onCountryHover("", "");[m
+[32m+[m[32m        onCountryHover(null);[m
+         return;[m
+       }[m
+ [m
+       const record = resolveCountryRecord(feature, countryIndexes);[m
+[31m-      const code = normalizeCode(record?.code || getFeatureCode(feature) || "");[m
+[32m+[m[32m      const code = normalizeCode([m
+[32m+[m[32m        record?.code || record?.iso2_code || getFeatureCode(feature) || ""[m
+[32m+[m[32m      );[m
+       const name =[m
+         record?.nameRu ||[m
+[32m+[m[32m        record?.name_ru ||[m
+         record?.name ||[m
+         record?.nameEn ||[m
+[32m+[m[32m        record?.name_en ||[m
+         getFeatureName(feature);[m
+ [m
+[31m-      onCountryHover({[m
+[31m-        code,[m
+[31m-        name,[m
+[31m-      });[m
+[32m+[m[32m      onCountryHover({ code, name });[m
+     },[m
+     [countryIndexes, onCountryHover][m
+   );[m
+[36m@@ -414,17 +427,18 @@[m [mfunction GlobeMap({[m
+       if (!onCountryClick || !feature) return;[m
+ [m
+       const record = resolveCountryRecord(feature, countryIndexes);[m
+[31m-      const code = normalizeCode(record?.code || getFeatureCode(feature) || "");[m
+[32m+[m[32m      const code = normalizeCode([m
+[32m+[m[32m        record?.code || record?.iso2_code || getFeatureCode(feature) || ""[m
+[32m+[m[32m      );[m
+       const name =[m
+         record?.nameRu ||[m
+[32m+[m[32m        record?.name_ru ||[m
+         record?.name ||[m
+         record?.nameEn ||[m
+[32m+[m[32m        record?.name_en ||[m
+         getFeatureName(feature);[m
+ [m
+[31m-      onCountryClick({[m
+[31m-        code,[m
+[31m-        name,[m
+[31m-      });[m
+[32m+[m[32m      onCountryClick({ code, name });[m
+     },[m
+     [countryIndexes, onCountryClick][m
+   );[m
+[36m@@ -440,8 +454,7 @@[m [mfunction GlobeMap({[m
+         pointerEvents: isActive ? "auto" : "none",[m
+         transition: "opacity 220ms ease",[m
+         overflow: "hidden",[m
+[31m-        background:[m
+[31m-          "radial-gradient(circle at center, #f7f2ea 0%, #efe7dc 100%)",[m
+[32m+[m[32m        background: "radial-gradient(circle at center, #f7f2ea 0%, #efe7dc 100%)",[m
+         borderRadius: "24px",[m
+       }}[m
+     >[m
+[36m@@ -452,21 +465,20 @@[m [mfunction GlobeMap({[m
+           height={size.height}[m
+           backgroundColor="rgba(0,0,0,0)"[m
+           animateIn={false}[m
+[31m-          waitForGlobeReady={true}[m
+[32m+[m[32m          waitForGlobeReady={false}[m
+           rendererConfig={{[m
+             antialias: true,[m
+             alpha: true,[m
+             powerPreference: "high-performance",[m
+           }}[m
+           globeMaterial={globeMaterial}[m
+[31m-          onGlobeReady={handleGlobeReady}[m
+[31m-          showGlobe={true}[m
+[32m+[m[32m          showGlobe[m
+           showAtmosphere={false}[m
+           showGraticules={false}[m
+           polygonsData={polygonsData}[m
+           polygonCapColor={polygonCapColor}[m
+[31m-          polygonSideColor={polygonSideColor}[m
+[31m-          polygonStrokeColor={polygonStrokeColor}[m
+[32m+[m[32m          polygonSideColor={() => COLORS.side}[m
+[32m+[m[32m          polygonStrokeColor={() => COLORS.stroke}[m
+           polygonAltitude={polygonAltitude}[m
+           polygonCapCurvatureResolution={3}[m
+           polygonsTransitionDuration={0}[m
+[36m@@ -484,8 +496,7 @@[m [mfunction GlobeMap({[m
+             display: "flex",[m
+             alignItems: "center",[m
+             justifyContent: "center",[m
+[31m-            background:[m
+[31m-              "radial-gradient(circle at center, #f7f2ea 0%, #efe7dc 100%)",[m
+[32m+[m[32m            background: "radial-gradient(circle at center, #f7f2ea 0%, #efe7dc 100%)",[m
+             zIndex: 5,[m
+           }}[m
+         >[m
+[36m@@ -526,8 +537,7 @@[m [mfunction GlobeMap({[m
+             padding: 24,[m
+             textAlign: "center",[m
+             color: "#6b4f3a",[m
+[31m-            background:[m
+[31m-              "radial-gradient(circle at center, #f7f2ea 0%, #efe7dc 100%)",[m
+[32m+[m[32m            background: "radial-gradient(circle at center, #f7f2ea 0%, #efe7dc 100%)",[m
+             zIndex: 6,[m
+           }}[m
+         >[m

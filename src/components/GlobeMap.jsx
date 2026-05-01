@@ -24,6 +24,8 @@ const GEOJSON_SOURCES = [
   "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson",
 ];
 
+let worldGeoJsonCache = null;
+
 function normalizeCode(value) {
   return String(value || "").trim().toUpperCase();
 }
@@ -42,14 +44,8 @@ function normalizeName(value) {
 
 function getFeatureCode(feature) {
   const p = feature?.properties || {};
-
   const iso2 =
-    p.ISO_A2 ||
-    p.iso_a2 ||
-    p.WB_A2 ||
-    p.iso2 ||
-    p.ISO2 ||
-    feature?.id;
+    p.ISO_A2 || p.iso_a2 || p.WB_A2 || p.iso2 || p.ISO2 || feature?.id;
 
   if (iso2 && String(iso2).length === 2) {
     return normalizeCode(iso2);
@@ -60,7 +56,6 @@ function getFeatureCode(feature) {
 
 function getFeatureName(feature) {
   const p = feature?.properties || {};
-
   return (
     p.ADMIN ||
     p.NAME ||
@@ -105,13 +100,18 @@ function buildCountryIndexes(countryData) {
   const byName = new Map();
 
   (countryData || []).forEach((item) => {
-    const code = normalizeCode(item.code);
+    const code = normalizeCode(
+      item.code || item.iso2_code || item.iso2 || item.country_code
+    );
+
     const names = [
       item.name,
       item.nameEn,
       item.nameRu,
       item.label,
       item.countryName,
+      item.name_en,
+      item.name_ru,
     ]
       .filter(Boolean)
       .map(normalizeName);
@@ -139,7 +139,6 @@ function resolveCountryRecord(feature, indexes) {
   }
 
   const normalizedName = normalizeName(name);
-
   if (normalizedName && indexes.byName.has(normalizedName)) {
     return indexes.byName.get(normalizedName);
   }
@@ -178,30 +177,26 @@ function GlobeMap({
 }) {
   const containerRef = useRef(null);
   const globeRef = useRef(null);
+  const didInitViewRef = useRef(false);
 
-  const [size, setSize] = useState({ width: 1000, height: 700 });
-  const [worldGeoJson, setWorldGeoJson] = useState(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const [worldGeoJson, setWorldGeoJson] = useState(worldGeoJsonCache);
   const [geoError, setGeoError] = useState("");
-  const [geoLoaded, setGeoLoaded] = useState(false);
-  const [globeReady, setGlobeReady] = useState(false);
-  const [showLoader, setShowLoader] = useState(true);
-  const [statusText, setStatusText] = useState("Подгружаем карту стран…");
+  const [showLoader, setShowLoader] = useState(!worldGeoJsonCache);
 
-  const countryIndexes = useMemo(
-    () => buildCountryIndexes(countryData),
-    [countryData]
-  );
+  const countryIndexes = useMemo(() => {
+    return buildCountryIndexes(countryData);
+  }, [countryData]);
 
   const polygonsData = useMemo(() => {
     return worldGeoJson?.features ?? [];
   }, [worldGeoJson]);
 
   const globeMaterial = useMemo(() => {
-    const material = new THREE.MeshPhongMaterial({
+    return new THREE.MeshPhongMaterial({
       color: COLORS.globe,
       shininess: 0.2,
     });
-    return material;
   }, []);
 
   useEffect(() => {
@@ -212,18 +207,24 @@ function GlobeMap({
     const updateSize = () => {
       const rect = element.getBoundingClientRect();
 
-      setSize({
-        width: Math.max(320, Math.round(rect.width || 1000)),
-        height: Math.max(420, Math.round(rect.height || 700)),
+      const nextWidth = Math.max(320, Math.round(rect.width || 0));
+      const nextHeight = Math.max(420, Math.round(rect.height || 0));
+
+      setSize((prev) => {
+        if (prev.width === nextWidth && prev.height === nextHeight) {
+          return prev;
+        }
+
+        return {
+          width: nextWidth,
+          height: nextHeight,
+        };
       });
     };
 
     updateSize();
 
-    const observer = new ResizeObserver(() => {
-      updateSize();
-    });
-
+    const observer = new ResizeObserver(updateSize);
     observer.observe(element);
 
     return () => observer.disconnect();
@@ -232,23 +233,18 @@ function GlobeMap({
   useEffect(() => {
     let cancelled = false;
 
-    setGeoLoaded(false);
-    setGeoError("");
-    setStatusText("Подгружаем карту стран…");
-    setShowLoader(true);
-
     loadWorldGeoJson()
       .then((json) => {
         if (cancelled) return;
         setWorldGeoJson(json);
-        setGeoLoaded(true);
-        setStatusText("Подготавливаем глобус…");
+        setShowLoader(false);
       })
       .catch((error) => {
         if (cancelled) return;
-        console.error("Ошибка загрузки GeoJSON:", error);
+
+        console.error("[GlobeMap] GeoJSON load error:", error);
         setGeoError(
-          "Не удалось загрузить границы стран для 3D-глобуса. Проверьте сеть или путь к GeoJSON."
+          "Не удалось загрузить границы стран для 3D-глобуса. Проверьте файл GeoJSON."
         );
         setShowLoader(false);
       });
@@ -258,30 +254,46 @@ function GlobeMap({
     };
   }, []);
 
+  const canRenderGlobe =
+    size.width > 0 && size.height > 0 && polygonsData.length > 0;
+
   useEffect(() => {
-    if (geoError) return;
-    if (!geoLoaded || !globeReady) return;
+    if (!canRenderGlobe || !globeRef.current || didInitViewRef.current) {
+      return;
+    }
 
-    setStatusText("Почти готово…");
+    const rafId = requestAnimationFrame(() => {
+      try {
+        const globe = globeRef.current;
+        const controls = globe?.controls?.();
 
-    let raf1 = 0;
-    let raf2 = 0;
-    let timer = 0;
+        if (controls) {
+          controls.enableDamping = true;
+          controls.dampingFactor = 0.08;
+          controls.rotateSpeed = 0.85;
+          controls.zoomSpeed = 0.95;
+          controls.panSpeed = 0.8;
+          controls.minDistance = 130;
+          controls.maxDistance = 420;
+        }
 
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        timer = window.setTimeout(() => {
-          setShowLoader(false);
-        }, 250);
-      });
+        globe?.pointOfView(
+          {
+            lat: 18,
+            lng: 15,
+            altitude: 1.9,
+          },
+          0
+        );
+
+        didInitViewRef.current = true;
+      } catch (error) {
+        console.error("[GlobeMap] setup error:", error);
+      }
     });
 
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      clearTimeout(timer);
-    };
-  }, [geoLoaded, globeReady, geoError]);
+    return () => cancelAnimationFrame(rafId);
+  }, [canRenderGlobe]);
 
   const handleGlobeReady = useCallback(() => {
     const globe = globeRef.current;
@@ -308,14 +320,14 @@ function GlobeMap({
       0
     );
 
-    setGlobeReady(true);
+    setShowLoader(false);
   }, []);
 
   const polygonCapColor = useCallback(
     (feature) => {
       const record = resolveCountryRecord(feature, countryIndexes);
       const resolvedCode = normalizeCode(
-        record?.code || getFeatureCode(feature) || ""
+        record?.code || record?.iso2_code || getFeatureCode(feature) || ""
       );
 
       if (
@@ -334,14 +346,11 @@ function GlobeMap({
     [countryIndexes, selectedCountryCode]
   );
 
-  const polygonSideColor = useCallback(() => COLORS.side, []);
-  const polygonStrokeColor = useCallback(() => COLORS.stroke, []);
-
   const polygonAltitude = useCallback(
     (feature) => {
       const record = resolveCountryRecord(feature, countryIndexes);
       const resolvedCode = normalizeCode(
-        record?.code || getFeatureCode(feature) || ""
+        record?.code || record?.iso2_code || getFeatureCode(feature) || ""
       );
 
       if (
@@ -367,9 +376,18 @@ function GlobeMap({
     (feature) => {
       const record = resolveCountryRecord(feature, countryIndexes);
       const fallbackName = getFeatureName(feature);
+
       const name =
-        record?.nameRu || record?.name || record?.nameEn || fallbackName;
-      const code = record?.code || getFeatureCode(feature) || "—";
+        record?.nameRu ||
+        record?.name_ru ||
+        record?.name ||
+        record?.nameEn ||
+        record?.name_en ||
+        fallbackName;
+
+      const code =
+        record?.code || record?.iso2_code || getFeatureCode(feature) || "—";
+
       const { hasStarbucks, mugsCount } = getCountryState(record);
 
       return `
@@ -394,17 +412,18 @@ function GlobeMap({
       }
 
       const record = resolveCountryRecord(feature, countryIndexes);
-      const code = normalizeCode(record?.code || getFeatureCode(feature) || "");
+      const code = normalizeCode(
+        record?.code || record?.iso2_code || getFeatureCode(feature) || ""
+      );
       const name =
         record?.nameRu ||
+        record?.name_ru ||
         record?.name ||
         record?.nameEn ||
+        record?.name_en ||
         getFeatureName(feature);
 
-      onCountryHover({
-        code,
-        name,
-      });
+      onCountryHover({ code, name });
     },
     [countryIndexes, onCountryHover]
   );
@@ -414,17 +433,18 @@ function GlobeMap({
       if (!onCountryClick || !feature) return;
 
       const record = resolveCountryRecord(feature, countryIndexes);
-      const code = normalizeCode(record?.code || getFeatureCode(feature) || "");
+      const code = normalizeCode(
+        record?.code || record?.iso2_code || getFeatureCode(feature) || ""
+      );
       const name =
         record?.nameRu ||
+        record?.name_ru ||
         record?.name ||
         record?.nameEn ||
+        record?.name_en ||
         getFeatureName(feature);
 
-      onCountryClick({
-        code,
-        name,
-      });
+      onCountryClick({ code, name });
     },
     [countryIndexes, onCountryClick]
   );
@@ -445,7 +465,7 @@ function GlobeMap({
         borderRadius: "24px",
       }}
     >
-      {!geoError && (
+      {!geoError && canRenderGlobe && (
         <Globe
           ref={globeRef}
           width={size.width}
@@ -460,13 +480,13 @@ function GlobeMap({
           }}
           globeMaterial={globeMaterial}
           onGlobeReady={handleGlobeReady}
-          showGlobe={true}
+          showGlobe
           showAtmosphere={false}
           showGraticules={false}
           polygonsData={polygonsData}
           polygonCapColor={polygonCapColor}
-          polygonSideColor={polygonSideColor}
-          polygonStrokeColor={polygonStrokeColor}
+          polygonSideColor={() => COLORS.side}
+          polygonStrokeColor={() => COLORS.stroke}
           polygonAltitude={polygonAltitude}
           polygonCapCurvatureResolution={3}
           polygonsTransitionDuration={0}
@@ -510,7 +530,7 @@ function GlobeMap({
                 animation: "globe-spin 0.9s linear infinite",
               }}
             />
-            <div>{statusText}</div>
+            <div>Подгружаем карту…</div>
           </div>
         </div>
       )}
