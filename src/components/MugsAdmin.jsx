@@ -310,7 +310,7 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
   async function loadAll() {
     setLoading(true);
     setError("");
-    const [countriesRes, mugsRes, citiesRes, statesRes] = await Promise.all([
+    const [countriesRes, mugsRes, statesRes] = await Promise.all([
       supabase.from("countries")
         .select("id, iso2_code, name_en, name_ru")
         .order("name_en", { ascending: true }),
@@ -322,11 +322,6 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
         created_at, updated_at,
         country:countries (id, iso2_code, name_en, name_ru)
       `).order("collection_number", { ascending: false, nullsFirst: false }),
-      supabase.from("cities")
-        .select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude, is_active, country_iso2, state_code")
-        .eq("is_active", true)
-        .order("name_en", { ascending: true })
-        .limit(10000),
       supabase.from("states")
         .select("id, country_id, code, name_en, name_ru, is_active")
         .eq("is_active", true)
@@ -338,9 +333,7 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
 
     setCountries(countriesRes.data ?? []);
     setMugs(mugsRes.data ?? []);
-    setCities(citiesRes.error ? [] : citiesRes.data ?? []);
     setStates(statesRes.error ? [] : statesRes.data ?? []);
-    setCitiesError(citiesRes.error ? "Не удалось загрузить города." : "");
     setStatesError(statesRes.error ? "Не удалось загрузить штаты/регионы." : "");
     setLoading(false);
   }
@@ -570,6 +563,7 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
   function openEditForm(mug) {
     const f = createFormState(mug);
     setForm(f); setInitialForm(f); setPendingImageFiles([]); setIsFormOpen(true); setError("");
+    if (f.country_id) loadCitiesForCountry(f.country_id, f.state_id || null);
   }
 
   function hasFormChanged() {
@@ -597,16 +591,40 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
     setForm(prev => ({ ...prev, collection_number: v, slug: buildCollectionSlug(v) || prev.slug }));
   }
 
+  async function loadCitiesForCountry(countryId, stateId = null) {
+    if (!countryId) { setCities([]); return; }
+    setCitiesError("");
+    let query = supabase
+      .from("cities")
+      .select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude, is_active, country_iso2, state_code")
+      .eq("country_id", countryId)
+      .eq("is_active", true)
+      .order("name_en", { ascending: true })
+      .limit(500);
+    if (stateId) query = query.eq("state_id", stateId);
+    const { data, error } = await query;
+    if (error) { setCitiesError("Не удалось загрузить города."); return; }
+    setCities(prev => {
+      const other = prev.filter(c =>
+        String(c.country_id) !== String(countryId) ||
+        (stateId && String(c.state_id) !== String(stateId))
+      );
+      return [...other, ...(data ?? [])];
+    });
+  }
+
   function updateCountry(value) {
     const nextStateOpts = stateOptionsByCountryId.get(String(value)) ?? [];
     const hasStates = nextStateOpts.length > 0;
     const nextStateId = hasStates && nextStateOpts.some(o => o.value === String(form.state_id || ""))
       ? String(form.state_id || "") : "";
     setForm(prev => ({ ...prev, country_id: value, state_id: nextStateId, city_id: "", city_key: "", city: "" }));
+    loadCitiesForCountry(value);
   }
 
   function updateState(value) {
     setForm(prev => ({ ...prev, state_id: value, city_id: "", city_key: "", city: "" }));
+    if (value) loadCitiesForCountry(form.country_id, value);
   }
 
   function updateCity(selectedValue) {
