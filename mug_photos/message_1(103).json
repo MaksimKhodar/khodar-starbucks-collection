@@ -1,0 +1,35 @@
+{
+  "participants": [
+    {
+      "name": "Eliu rey"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Eliu rey",
+      "timestamp_ms": 1718447194740,
+      "content": "\u00f0\u009f\u0094\u00a5",
+      "reactions": [
+        {
+          "reaction": "\u00e2\u009d\u00a4",
+          "actor": "Maksim Khodar",
+          "timestamp": 1718447942
+        }
+      ],
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3390883663525824040"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Eliu rey",
+  "is_still_participant": true,
+  "thread_path": "inbox/eliurey_18026040980154245",
+  "magic_words": [
+    
+  ]
+}

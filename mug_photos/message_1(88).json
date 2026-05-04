@@ -1,0 +1,25 @@
+{
+  "participants": [
+    {
+      "name": "Instagram User"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Instagram User",
+      "timestamp_ms": 1707653908227,
+      "content": "Czesz! Tw\u00c3\u00b3j Instagram stanie si\u00c4\u0099 prawdziwym hitem w\u00c5\u009br\u00c3\u00b3d u\u00c5\u00bcytkownik\u00c3\u00b3w z Polski!. Powierz swoje konto naszym ekspertom i ciesz si\u00c4\u0099 sukcesem. Na stronie g\u00c5\u0082\u00c3\u00b3wnej znajdziesz wszystkie recenzje oraz prace przed i po. \u00f0\u009f\u0091\u0089\u00f0\u009f\u008f\u00bbpoland.promotion.inst \u00c5\u00bbyczymy Radosnego nastroju",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Instagram User",
+  "is_still_participant": true,
+  "thread_path": "inbox/instagramuser_1352882942778175",
+  "magic_words": [
+    
+  ]
+}

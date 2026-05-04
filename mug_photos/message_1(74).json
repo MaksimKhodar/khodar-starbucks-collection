@@ -1,0 +1,26 @@
+{
+  "participants": [
+    {
+      "name": "Instagram User"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Instagram User",
+      "timestamp_ms": 1739815077454,
+      "content": "Hallo, ich bin eine Drittagentur aus Gro\u00c3\u009fbritannien, die sich auf die Verbesserung von Ranking- und Like-Diensten f\u00c3\u00bcr die Hotelanwendung Booking+Airbnb spezialisiert hat. Das Unternehmen sucht derzeit weltweit nach Freelancern. Dies ist ganz einfach mit Ihrem Telefon m\u00c3\u00b6glich und Sie k\u00c3\u00b6nnen Zeit und Ort flexibel nutzen. Das Tagesgehalt betr\u00c3\u00a4gt 100-300 Euro, das Monatsgehalt f\u00c3\u00bcr regul\u00c3\u00a4re Mitarbeiter liegt bei 3000-10000 Euro. Hinweis (Dieser Artikel ist nicht f\u00c3\u00bcr Studierende unter 22 Jahren und afrikanische Benutzer geeignet.) Weitere Informationen finden Sie unter dem WhatsaPP-Link: https://bit.ly/3CM2xKB",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Instagram User",
+  "is_still_participant": true,
+  "thread_path": "message_requests/instagramuser_17895507153118317",
+  "magic_words": [
+    
+  ],
+  "is_pending": true
+}

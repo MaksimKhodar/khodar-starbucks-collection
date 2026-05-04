@@ -1,0 +1,26 @@
+{
+  "participants": [
+    {
+      "name": "Instagram User"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Instagram User",
+      "timestamp_ms": 1715013509252,
+      "content": "Hello, I am the recruitment manager of Booking*com. If you have just resigned or have free time, you can apply for my job. Our job is very simple. We only need to be online for 2 hours a day. We are mainly responsible for the hotel APP star rating, ranking and other traffic, and provide comprehensive professional services. Our daily salary is between 100 and 800 euros, paid daily. Note: (This job is not suitable for children under 22 years old. Due to regional payment reasons, African and Indian countries are temporarily unable to receive remuneration) For more details, please click the WhatsaPP link: https://bit.ly/4ad9H5u",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Instagram User",
+  "is_still_participant": true,
+  "thread_path": "message_requests/instagramuser_17862395811118317",
+  "magic_words": [
+    
+  ],
+  "is_pending": true
+}

@@ -1,0 +1,103 @@
+{
+  "participants": [
+    {
+      "name": "Se\u00cc\u0081bastien Mayer"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Se\u00cc\u0081bastien Mayer",
+      "timestamp_ms": 1730058768835,
+      "content": "Not too far from Paris.",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1730054277065,
+      "content": "Which part?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1730054260313,
+      "content": "Nice",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Se\u00cc\u0081bastien Mayer",
+      "timestamp_ms": 1730054232942,
+      "content": "France",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1730054220927,
+      "content": "And where are you from?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1730054209504,
+      "content": "So it not easy to get something like this",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1730054191455,
+      "content": "I'm originally from Belarus and we don't have starbucks here",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Se\u00cc\u0081bastien Mayer",
+      "timestamp_ms": 1730054178779,
+      "photos": [
+        {
+          "uri": "your_instagram_activity/messages/inbox/sebastienmayer_1421390415915474/photos/538493425737437.jpg",
+          "creation_timestamp": 1730054178
+        }
+      ],
+      "reactions": [
+        {
+          "reaction": "\u00e2\u009d\u00a4",
+          "actor": "Maksim Khodar",
+          "timestamp": 1730054227
+        }
+      ],
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1730054170551,
+      "content": "\u00f0\u009f\u0098\u008d",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Se\u00cc\u0081bastien Mayer",
+      "timestamp_ms": 1730035422533,
+      "content": "FYI The Xmas version is already out in some places",
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3488043842205715210"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Se\u00cc\u0081bastien Mayer",
+  "is_still_participant": true,
+  "thread_path": "inbox/sebastienmayer_1421390415915474",
+  "magic_words": [
+    
+  ]
+}

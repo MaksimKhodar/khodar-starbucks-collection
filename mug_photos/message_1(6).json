@@ -1,0 +1,53 @@
+{
+  "participants": [
+    {
+      "name": "Instagram User"
+    },
+    {
+      "name": "Khaled"
+    },
+    {
+      "name": "Hundezubeh\u00c3\u00b6r by Rebecca"
+    },
+    {
+      "name": "Starbucks UAE"
+    },
+    {
+      "name": "Worldwide Starbucks Mugs"
+    },
+    {
+      "name": "Maksim Khodar"
+    },
+    {
+      "name": "Starbucks"
+    },
+    {
+      "name": "Jenan Ali"
+    },
+    {
+      "name": "Eliu rey"
+    },
+    {
+      "name": "Instagram User"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Instagram User",
+      "timestamp_ms": 1713539243663,
+      "content": "Instagram User sent an attachment.",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Instagram User, Khaled, Hundezubeh\u00c3\u00b6r by Rebecca and 6 others",
+  "is_still_participant": true,
+  "thread_path": "inbox/instagramuserkhaledhundezubehorbyrebeccaand6others_6951240728315511",
+  "magic_words": [
+    
+  ],
+  "joinable_mode": {
+    "mode": 2,
+    "link": "https://ig.me/j/AbapmU8RbnwX_CR6/"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "participants": [
+    {
+      "name": "rubixaz08"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "rubixaz08",
+      "timestamp_ms": 1704011900641,
+      "content": "Hey \u00f0\u009f\u0091\u008b\n\nLet me know when you are available, I need to talk with you.",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "rubixaz08",
+  "is_still_participant": true,
+  "thread_path": "inbox/rubixaz08_17847759579118317",
+  "magic_words": [
+    
+  ]
+}

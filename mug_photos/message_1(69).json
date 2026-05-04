@@ -1,0 +1,27 @@
+{
+  "participants": [
+    {
+      "name": "\u00f0\u009d\u0090\u008d\u00f0\u009d\u0090\u0080\u00f0\u009d\u0090\u0093\u00f0\u009d\u0090\u0080\u00f0\u009d\u0090\u0092\u00f0\u009d\u0090\u0087\u00f0\u009d\u0090\u0080 \u00f0\u009d\u0090\u008c\u00f0\u009d\u0090\u0080\u00f0\u009d\u0090\u008d\u00f0\u009d\u0090\u008a\u00f0\u009d\u0090\u008e\u00f0\u009d\u0090\u0095\u00f0\u009d\u0090\u0092\u00f0\u009d\u0090\u008a\u00f0\u009d\u0090\u0080\u00f0\u009d\u0090\u0098\u00f0\u009d\u0090\u0080 \u00f0\u009f\u0092\u008b"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1717248907758,
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3380826724276191365"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "\u00f0\u009d\u0090\u008d\u00f0\u009d\u0090\u0080\u00f0\u009d\u0090\u0093\u00f0\u009d\u0090\u0080\u00f0\u009d\u0090\u0092\u00f0\u009d\u0090\u0087\u00f0\u009d\u0090\u0080 \u00f0\u009d\u0090\u008c\u00f0\u009d\u0090\u0080\u00f0\u009d\u0090\u008d\u00f0\u009d\u0090\u008a\u00f0\u009d\u0090\u008e\u00f0\u009d\u0090\u0095\u00f0\u009d\u0090\u0092\u00f0\u009d\u0090\u008a\u00f0\u009d\u0090\u0080\u00f0\u009d\u0090\u0098\u00f0\u009d\u0090\u0080 \u00f0\u009f\u0092\u008b",
+  "is_still_participant": true,
+  "thread_path": "inbox/natashamankovskaya_1464413431624185",
+  "magic_words": [
+    
+  ]
+}

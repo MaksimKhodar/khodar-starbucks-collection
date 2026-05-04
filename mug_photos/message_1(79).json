@@ -1,0 +1,50 @@
+{
+  "participants": [
+    {
+      "name": "starbs.mugs"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "starbs.mugs",
+      "timestamp_ms": 1773769242960,
+      "content": "\u00f0\u009f\u0098\u008d",
+      "reactions": [
+        {
+          "reaction": "\u00e2\u009d\u00a4",
+          "actor": "Maksim Khodar"
+        }
+      ],
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3854920901179666183"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "starbs.mugs",
+      "timestamp_ms": 1773488624833,
+      "content": "\u00f0\u009f\u0098\u008d",
+      "reactions": [
+        {
+          "reaction": "\u00e2\u009d\u00a4",
+          "actor": "Maksim Khodar"
+        }
+      ],
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3852623631126024402"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "starbs.mugs",
+  "is_still_participant": true,
+  "thread_path": "inbox/starbsmugs_17947598049118317",
+  "magic_words": [
+    
+  ]
+}

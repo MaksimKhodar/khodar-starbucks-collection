@@ -1,0 +1,32 @@
+{
+  "participants": [
+    {
+      "name": "Instagram User"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Instagram User",
+      "timestamp_ms": 1732379201136,
+      "content": "I am a luxury replica seller from China. Selling luxury replicas including shoes, bags, watches, clothes, accessories,scarves,sunglasses, and more.\r\nOur replica catalog has tens of thousands of luxury replicas waiting for you to choose from.\r\n\r\nAdd our whatsapp account to get replica catalog\r\n\r\nOur whatsapp: +86 18050587564\r\n\r\n\r\nI'm sorry if it bothers you\u00ef\u00bc\u0081",
+      "reactions": [
+        {
+          "reaction": "\u00e2\u009d\u00a4",
+          "actor": "Maksim Khodar",
+          "timestamp": 1732393553
+        }
+      ],
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Instagram User",
+  "is_still_participant": true,
+  "thread_path": "inbox/instagramuser_17885669286118317",
+  "magic_words": [
+    
+  ]
+}

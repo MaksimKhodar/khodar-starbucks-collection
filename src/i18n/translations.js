@@ -20,8 +20,6 @@ export const translations = {
     loadingTitle: "Загрузка данных…",
     loadingText: "Получаем страны и кружки из базы данных.",
     errorTitle: "Ошибка загрузки",
-    errorText: "Произошла ошибка при загрузке данных.",
-    retry: "Повторить",
 
     globe3d: "Глобус 3D",
 
@@ -50,51 +48,6 @@ export const translations = {
     receivedAt: "Когда получена",
     broughtBy: "Кто привёз",
     note: "Заметка",
-
-    catalogTitle: "Каталог кружек",
-    catalogSubtitle: "Формат маркетплейса: фильтры слева, карточки кружек справа.",
-
-    totalMugs: "всего кружек",
-    filteredMugs: "после фильтрации",
-    found: "Найдено: {{count}}",
-
-    filters: "Фильтры",
-    search: "Поиск",
-    searchPlaceholder: "Название, город, кто привёз, заметка",
-
-    country: "Страна",
-    allCountries: "Все страны",
-
-    mugType: "Тип кружки",
-    allTypes: "Все типы",
-
-    onlyWithNotes: "Только с заметками",
-
-    sorting: "Сортировка",
-    sortNewest: "Сначала новые",
-    sortOldest: "Сначала старые",
-    sortNameAsc: "По названию А-Я",
-    sortNameDesc: "По названию Я-А",
-
-    resetFilters: "Сбросить фильтры",
-
-    noPhotos: "Нет фотографий",
-    noNote: "Нет заметки",
-
-    local: "Локальная",
-    citySeries: "Городская серия",
-    countrySeries: "Страна",
-    ornament: "Орнамент",
-    relief: "Рельефная",
-    icon: "Иконка",
-    beenThere: "Been There",
-    youAreHere: "You Are Here",
-    reserve: "Reserve",
-    other: "Другое",
-
-    unknown: "Не указано",
-
-    people: "Люди",
   },
 
   en: {
@@ -118,8 +71,6 @@ export const translations = {
     loadingTitle: "Loading data…",
     loadingText: "Fetching countries and mugs from the database.",
     errorTitle: "Loading error",
-    errorText: "An error occurred while loading data.",
-    retry: "Retry",
 
     globe3d: "3D Globe",
 
@@ -148,61 +99,5 @@ export const translations = {
     receivedAt: "Received",
     broughtBy: "Brought by",
     note: "Note",
-
-    catalogTitle: "Mug Catalog",
-    catalogSubtitle: "Marketplace-style layout: filters on the left, mug cards on the right.",
-
-    totalMugs: "total mugs",
-    filteredMugs: "after filtering",
-    found: "Found: {{count}}",
-
-    filters: "Filters",
-    search: "Search",
-    searchPlaceholder: "Title, city, who brought it, note",
-
-    country: "Country",
-    allCountries: "All countries",
-
-    mugType: "Mug type",
-    allTypes: "All types",
-
-    onlyWithNotes: "Only with notes",
-
-    sorting: "Sorting",
-    sortNewest: "Newest first",
-    sortOldest: "Oldest first",
-    sortNameAsc: "Name A-Z",
-    sortNameDesc: "Name Z-A",
-
-    resetFilters: "Reset filters",
-
-    noPhotos: "No photos",
-    noNote: "No note",
-
-    local: "Local",
-    citySeries: "City series",
-    countrySeries: "Country",
-    ornament: "Ornament",
-    relief: "Relief",
-    icon: "Icon",
-    beenThere: "Been There",
-    youAreHere: "You Are Here",
-    reserve: "Reserve",
-    other: "Other",
-
-    unknown: "Not specified",
-
-    people: "People",
   },
-};
-
-export const t = (lang, key, vars = {}) => {
-  const locale = translations[lang] || translations.ru;
-  let value = locale[key] ?? translations.ru[key] ?? key;
-
-  Object.entries(vars).forEach(([varKey, varValue]) => {
-    value = value.replaceAll(`{{${varKey}}}`, String(varValue));
-  });
-
-  return value;
 };

@@ -1,0 +1,42 @@
+{
+  "participants": [
+    {
+      "name": "Instagram User"
+    },
+    {
+      "name": "Maksim Khodar"
+    },
+    {
+      "name": "Alicja Bandurska"
+    },
+    {
+      "name": "Aleksandra Kuleta"
+    },
+    {
+      "name": "dejavu_deluxe"
+    },
+    {
+      "name": "dadoftwins"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Instagram User",
+      "timestamp_ms": 1716460756163,
+      "content": "Good news, I'm a recruiting manager at Booking*com. We are recruiting part-time online members worldwide. You only need to use your spare time to work online for 2 hours a day, with a daily salary of (100-800) euros, and work online for 15 consecutive days. Available in Euros (1500-3000). Your job is mainly responsible for improving hotel APP star rating, ranking and other traffic, and providing a full range of professional services. Note: (This post is not suitable for children under 22 years old. Sorry, African and Indian countries are temporarily unable to receive salaries and awards due to regional payment reasons) For more details, please click on the WhatsaPP link: https://bit.ly/3UTreK9",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Instagram User, Alicja Bandurska, Aleksandra Kuleta and 2 others",
+  "is_still_participant": true,
+  "thread_path": "message_requests/instagramuseralicjabandurskaaleksandrakuletaand2others_7670142869767988",
+  "magic_words": [
+    
+  ],
+  "joinable_mode": {
+    "mode": 1,
+    "link": ""
+  },
+  "is_pending": true
+}

@@ -1,0 +1,45 @@
+{
+  "participants": [
+    {
+      "name": "Pavel"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1714548797948,
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3358201120179865898"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1707645401536,
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3300291065753449992"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1703188491903,
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3262903812186334687"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Pavel",
+  "is_still_participant": true,
+  "thread_path": "inbox/pavel_17846378109118317",
+  "magic_words": [
+    
+  ]
+}

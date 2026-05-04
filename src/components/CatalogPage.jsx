@@ -1,1275 +1,887 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import MugCarousel from "./MugCarousel";
-import PersonDetailModal from "./PersonDetailModal";
-import { translations } from "../i18n/translations";
+import { MugEditDrawer } from "./MugsAdmin";
 import { formatDate, normalizeIso2 } from "../lib/utils";
-import {
-  COLOR_OPTIONS,
-  ensureArray,
-  buildTypeOptions,
-  getCityDisplayName,
-  getColorLabels,
-  getLocalizedOptionLabel,
-  getTypeLabels,
-  getTypeValues,
-  buildCityFilterValue,
-} from "../data/mugMetadata";
 
-function getLocalizedValue(value, language = "ru") {
-  if (value == null) return "";
+const EMPTY_VALUE = "";
+const NOTE_CLAMP = 120;
+const SIDEBAR_BREAKPOINT = 768;
 
-  if (typeof value === "string") {
-    return value;
-  }
+const LABELS = {
+  ru: {
+    title: "Каталог кружек",
+    subtitle: "Проверь коллекцию перед покупкой или подарком",
+    searchPlaceholder: "Поиск по названию, городу, заметке, типу...",
+    country: "Страна", state: "Штат / регион", city: "Город",
+    collection: "Коллекция", color: "Цвет", sort: "Сортировка",
+    allCountries: "Все страны", allStates: "Все штаты", allCities: "Все города",
+    allCollections: "Все коллекции", allColors: "Все цвета",
+    newest: "Сначала новые", oldest: "Сначала старые", titleAsc: "Название А–Я",
+    found: "Найдено", mugs: "кружек", reset: "Сбросить всё",
+    noResultsTitle: "Ничего не найдено", noResultsText: "Попробуй изменить фильтры.",
+    type: "Тип", receivedAt: "Получена", broughtBy: "Привёз",
+    note: "История", collections: "Коллекция", colors: "Цвет", unknown: "—",
+    showMore: "Читать далее", showLess: "Свернуть",
+    filters: "Фильтры", sorting: "Сортировка", clearAll: "Сбросить всё",
+  },
+  en: {
+    title: "Mug catalog",
+    subtitle: "Check the collection before buying or gifting",
+    searchPlaceholder: "Search by title, city, note, type...",
+    country: "Country", state: "State / region", city: "City",
+    collection: "Collection", color: "Color", sort: "Sort",
+    allCountries: "All countries", allStates: "All states", allCities: "All cities",
+    allCollections: "All collections", allColors: "All colors",
+    newest: "Newest first", oldest: "Oldest first", titleAsc: "Title A–Z",
+    found: "Found", mugs: "mugs", reset: "Reset all",
+    noResultsTitle: "Nothing found", noResultsText: "Try changing the filters.",
+    type: "Type", receivedAt: "Received", broughtBy: "Brought by",
+    note: "Story", collections: "Collection", colors: "Color", unknown: "—",
+    showMore: "Read more", showLess: "Show less",
+    filters: "Filters", sorting: "Sort", clearAll: "Clear all",
+  },
+};
 
-  if (typeof value === "object") {
-    return value[language] || value.ru || value.en || "";
-  }
+const COLLECTION_LABELS = {
+  ru: {
+    been_here: "Been Here", been_there: "Been There", discovery: "Discovery",
+    you_are_here: "You Are Here", icon: "Icon", relief: "Relief",
+    city: "Городская", country: "Страна", ornament: "Орнамент",
+    holiday: "Holiday", christmas: "Christmas", espresso: "Espresso",
+    demitasse: "Demitasse", "city-series": "Городская", "been-there": "Been There",
+    "new-year": "Новый год", winter: "Зимняя", spring: "Весенняя",
+    "valentines-day": "День влюблённых", local: "Местная",
+  },
+  en: {
+    been_here: "Been Here", been_there: "Been There", discovery: "Discovery",
+    you_are_here: "You Are Here", icon: "Icon", relief: "Relief",
+    city: "City", country: "Country", ornament: "Ornament",
+    holiday: "Holiday", christmas: "Christmas", espresso: "Espresso",
+    demitasse: "Demitasse", "city-series": "City Series", "been-there": "Been There",
+    "new-year": "New Year", winter: "Winter", spring: "Spring",
+    "valentines-day": "Valentine's Day", local: "Local",
+  },
+};
 
-  return String(value);
+const COLOR_LABELS = {
+  ru: {
+    green: "Зелёный", blue: "Синий", red: "Красный", yellow: "Жёлтый",
+    orange: "Оранжевый", brown: "Коричневый", black: "Чёрный", white: "Белый",
+    gray: "Серый", grey: "Серый", purple: "Фиолетовый", pink: "Розовый",
+    gold: "Золотой", silver: "Серебряный", beige: "Бежевый",
+    turquoise: "Бирюзовый", multicolor: "Многоцветный", navy: "Тёмно-синий",
+  },
+  en: {
+    green: "Green", blue: "Blue", red: "Red", yellow: "Yellow",
+    orange: "Orange", brown: "Brown", black: "Black", white: "White",
+    gray: "Gray", grey: "Gray", purple: "Purple", pink: "Pink",
+    gold: "Gold", silver: "Silver", beige: "Beige",
+    turquoise: "Turquoise", multicolor: "Multicolor", navy: "Navy",
+  },
+};
+
+const COLOR_SWATCHES = {
+  green: "#4CAF50", blue: "#2196F3", red: "#F44336", yellow: "#FFC107",
+  orange: "#FF9800", brown: "#795548", black: "#212121", white: "#F5F5F5",
+  gray: "#9E9E9E", grey: "#9E9E9E", purple: "#9C27B0", pink: "#E91E63",
+  gold: "#FFD700", silver: "#C0C0C0", beige: "#D4B896", turquoise: "#00BCD4",
+  multicolor: "linear-gradient(135deg,#f44336,#ff9800,#ffeb3b,#4caf50,#2196f3)",
+  navy: "#1a237e",
+};
+
+function normalizeText(v) { return String(v || "").trim().toLowerCase(); }
+function normalizeToken(v) { return String(v || "").trim().toLowerCase().replace(/\s+/g, "_").replace(/-+/g, "_"); }
+function prettifyToken(t) { return String(t || "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()); }
+function uniqueList(list) { return Array.from(new Set(list.filter(Boolean))); }
+
+function parseTokenList(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return uniqueList(value.map(normalizeToken));
+  if (typeof value === "object") return uniqueList(Object.values(value).map(normalizeToken));
+  const raw = String(value || "").trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return uniqueList(parsed.map(normalizeToken));
+    if (parsed && typeof parsed === "object") return uniqueList(Object.values(parsed).map(normalizeToken));
+  } catch { }
+  const clean = raw.replace(/^\{/, "").replace(/\}$/, "").replace(/^\[/, "").replace(/\]$/, "");
+  return uniqueList(clean.split(",").map(i => i.replace(/^"+|"+$/g, "")).map(normalizeToken));
 }
 
-function getSearchableValue(value) {
-  if (value == null) return "";
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value === "object") {
-    return Object.values(value).filter(Boolean).join(" ");
-  }
-
-  return String(value);
+function makeCityFilterKey(mug) {
+  if (mug.city_id) return `id:${mug.city_id}`;
+  const t = normalizeText(mug.city || mug.city_key || "");
+  return t ? `raw:${t}` : "";
 }
 
-function tr(language, key, fallback, vars = {}) {
-  const locale = translations[language] || translations.ru || {};
-  const ru = translations.ru || {};
+function getDateTime(v) {
+  if (!v) return 0;
+  const t = new Date(v).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
 
-  let value = locale[key] ?? ru[key] ?? fallback ?? key;
-
-  Object.entries(vars).forEach(([varKey, varValue]) => {
-    value = String(value).replaceAll(`{{${varKey}}}`, String(varValue));
+// Parse @handles and make them Instagram links
+function renderBroughtBy(text) {
+  if (!text) return null;
+  const parts = text.split(/(@[\w.]+)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("@")) {
+      const handle = part.slice(1);
+      return (
+        <a
+          key={i}
+          href={`https://instagram.com/${handle}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: "#1f6f54", fontWeight: 600, textDecoration: "none",
+            borderBottom: "1px solid rgba(31,111,84,0.3)",
+          }}
+          onMouseEnter={e => e.target.style.borderBottomColor = "#1f6f54"}
+          onMouseLeave={e => e.target.style.borderBottomColor = "rgba(31,111,84,0.3)"}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part ? <span key={i}>{part}</span> : null;
   });
-
-  return value;
 }
 
-function getUiText(language = "ru") {
-  if (language === "en") {
-    return {
-      filterFromMap: "Filter from map:",
-      applyCountry: "Apply country",
-      removeCountryFilter: "Remove country filter",
-      withNotesChip: "With notes",
-      nothingFound: "Nothing found",
-      emptyText: "Try changing the filters or resetting them completely.",
-      untitledMug: "Untitled mug",
-      mugFallbackAlt: "Mug",
-      noPhotos: "No photos",
-      noNote: "No note",
-      unknown: "Not specified",
-      sortTitleAsc: "Title: A → Z",
-      sortTitleDesc: "Title: Z → A",
-      sortCountryAsc: "Country: A → Z",
-      sortCityAsc: "City: A → Z",
-      allCities: "All cities",
-      allColors: "All colors",
-      types: "Types",
-      colors: "Colors",
-      colorChipLabel: "Colors",
-      typeChipLabel: "Type",
-    };
-  }
+// ── MugCard ──────────────────────────────────────────────────────────────────
 
-  return {
-    filterFromMap: "Фильтр от карты:",
-    applyCountry: "Применить страну",
-    removeCountryFilter: "Убрать фильтр страны",
-    withNotesChip: "С заметками",
-    nothingFound: "Ничего не найдено",
-    emptyText: "Попробуйте изменить фильтры или сбросить их полностью.",
-    untitledMug: "Без названия",
-    mugFallbackAlt: "Кружка",
-    noPhotos: "Нет фотографий",
-    noNote: "Нет заметки",
-    unknown: "Не указано",
-    sortTitleAsc: "Название: А → Я",
-    sortTitleDesc: "Название: Я → А",
-    sortCountryAsc: "Страна: А → Я",
-    sortCityAsc: "Город: А → Я",
-    allCities: "Все города",
-    allColors: "Все цвета",
-    types: "Типы",
-    colors: "Цвета",
-    colorChipLabel: "Цвета",
-    typeChipLabel: "Тип",
-  };
-}
-
-function getCountryLabel(country, language = "ru") {
-  if (!country) return "—";
-
-  if (language === "en") {
-    return country.name_en || country.name_ru || country.iso2_code || "—";
-  }
-
-  return country.name_ru || country.name_en || country.iso2_code || "—";
-}
-
-function FilterChipGroup({
-  options = [],
-  selectedValues = [],
-  onToggle,
-  language = "ru",
-  showSwatch = false,
-}) {
-  if (!options.length) return null;
+function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, colorTokens, getCollectionLabel, getColorLabel, isAdmin, onEdit }) {
+  const [noteExpanded, setNoteExpanded] = useState(false);
+  const note = mug.note || "";
+  const noteShort = note.length > NOTE_CLAMP ? note.slice(0, NOTE_CLAMP).trimEnd() + "…" : note;
+  const hasLongNote = note.length > NOTE_CLAMP;
 
   return (
-    <div style={styles.chipGroup}>
-      {options.map((option) => {
-        const optionValue = option.value ?? option.key;
-        const optionLabel =
-          typeof option.label === "string"
-            ? option.label
-            : getLocalizedOptionLabel(option, language);
-        const active = selectedValues.includes(optionValue);
+    <article style={{
+      display: "flex", flexDirection: "column",
+      background: "#ffffff", borderRadius: 16,
+      border: "1px solid #e8e2d9", overflow: "hidden",
+      transition: "box-shadow 0.2s, transform 0.2s",
+      isolation: "isolate",
+    }}
+      onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 6px 24px rgba(0,0,0,0.09)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "translateY(0)"; }}
+    >
+      {/* Photo — square crop */}
+      <div style={{
+        flexShrink: 0, background: "#f5f0e8", position: "relative", overflow: "hidden",
+        aspectRatio: "1 / 1", width: "100%",
+      }}>
+        {/* Centered image wrapper */}
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <MugCarousel images={mug.mug_images || []} fallbackAlt={mug.title} />
+        </div>
 
-        return (
+        {/* Collection number badge */}
+        {mug.collection_number && (
+          <div style={{
+            position: "absolute", top: 8, left: 8,
+            background: "rgba(0,0,0,0.52)", color: "#fff",
+            fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 999,
+            zIndex: 2,
+          }}>
+            #{mug.collection_number}
+          </div>
+        )}
+
+        {/* Admin edit button */}
+        {isAdmin && (
           <button
-            key={optionValue}
             type="button"
-            onClick={() => onToggle(optionValue)}
+            onClick={e => { e.stopPropagation(); onEdit?.(mug); }}
             style={{
-              ...styles.filterChip,
-              ...(active ? styles.filterChipActive : null),
+              position: "absolute", bottom: 8, right: 8, zIndex: 3,
+              background: "rgba(31,111,84,0.9)", color: "#fff",
+              border: "none", borderRadius: 8, padding: "4px 10px",
+              fontSize: 11, fontWeight: 600, cursor: "pointer",
+              backdropFilter: "blur(4px)",
+              display: "flex", alignItems: "center", gap: 4,
             }}
           >
-            {showSwatch && option.swatch ? (
-              <span
-                aria-hidden="true"
+            ✎ Изменить
+          </button>
+        )}
+
+        {/* Collection type badge */}
+        {collectionTokens.length > 0 && (
+          <div style={{
+            position: "absolute", top: 8, right: 8, zIndex: 2,
+            display: "flex", gap: 3, flexWrap: "wrap", maxWidth: "60%", justifyContent: "flex-end",
+          }}>
+            {collectionTokens.slice(0, 2).map(token => (
+              <span key={token} style={{
+                background: "rgba(21,49,38,0.78)", color: "#fff",
+                fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 999,
+                backdropFilter: "blur(4px)",
+              }}>
+                {getCollectionLabel(token)}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Body — clear separation from photo */}
+      <div style={{
+        flex: 1, display: "flex", flexDirection: "column",
+        padding: "12px 14px 14px", gap: 8,
+        background: "#fff", position: "relative", zIndex: 1,
+      }}>
+
+        {/* Title + date */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6 }}>
+          <h3 style={{
+            margin: 0, fontSize: 13, fontWeight: 600, color: "#153126",
+            lineHeight: 1.35, flex: 1, wordBreak: "break-word",
+          }}>
+            {mug.title}
+          </h3>
+          {mug.received_at && (
+            <span style={{ fontSize: 10, color: "#8a9e96", flexShrink: 0, paddingTop: 2, whiteSpace: "nowrap" }}>
+              {formatDate(mug.received_at)}
+            </span>
+          )}
+        </div>
+
+        {/* Geo */}
+        <div style={{ fontSize: 12, color: "#5f6f66", lineHeight: 1.4 }}>
+          {[countryName, stateName, cityText !== "—" ? cityText : null].filter(Boolean).join(" · ")}
+        </div>
+
+        {/* Who brought */}
+        {mug.brought_by && (
+          <div style={{ fontSize: 12, color: "#8a9e96" }}>
+            ✈ {renderBroughtBy(mug.brought_by)}
+          </div>
+        )}
+
+        {/* Colors */}
+        {colorTokens.length > 0 && (
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {colorTokens.map(token => (
+              <div
+                key={token}
+                title={getColorLabel(token)}
                 style={{
-                  ...styles.colorDot,
-                  background: option.swatch,
+                  width: 14, height: 14, borderRadius: "50%",
+                  background: COLOR_SWATCHES[token] || "#ccc",
+                  border: token === "white" ? "1px solid #ddd" : "none",
+                  flexShrink: 0,
                 }}
               />
-            ) : null}
-            <span>{optionLabel}</span>
-          </button>
-        );
-      })}
+            ))}
+          </div>
+        )}
+
+        {/* Note */}
+        {note && (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", marginTop: 2 }}>
+            <p style={{ margin: 0, fontSize: 11, color: "#6b7e74", lineHeight: 1.55, fontStyle: "italic" }}>
+              {noteExpanded ? note : noteShort}
+            </p>
+            {hasLongNote && (
+              <button
+                type="button"
+                onClick={() => setNoteExpanded(p => !p)}
+                style={{
+                  marginTop: 3, background: "none", border: "none", padding: 0,
+                  color: "#1f6f54", fontSize: 11, fontWeight: 600, cursor: "pointer", textAlign: "left",
+                }}
+              >
+                {noteExpanded ? ui.showLess : ui.showMore}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
+// ── Sidebar filter section ────────────────────────────────────────────────────
+
+function FilterSection({ title, options, selected, onSelect, withSwatches = false }) {
+  const [expanded, setExpanded] = useState(true);
+  const SHOW = 8;
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? options : options.slice(0, SHOW);
+
+  return (
+    <div style={{ borderBottom: "0.5px solid #e8e2d9", paddingBottom: 14 }}>
+      <button
+        type="button"
+        onClick={() => setExpanded(p => !p)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: "none", border: "none", padding: "10px 0 6px", cursor: "pointer",
+          fontSize: 12, fontWeight: 600, color: "#31443a", textTransform: "uppercase", letterSpacing: "0.04em",
+        }}
+      >
+        {title}
+        <span style={{ fontSize: 10, color: "#8a9e96", transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>▾</span>
+      </button>
+
+      {expanded && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          {visible.map(opt => {
+            const active = selected === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => onSelect(active ? EMPTY_VALUE : opt.value)}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "6px 8px", borderRadius: 8, border: "none",
+                  background: active ? "#e8f5ee" : "transparent",
+                  color: active ? "#1a6340" : "#374151",
+                  cursor: "pointer", fontSize: 13, fontWeight: active ? 600 : 400,
+                  textAlign: "left", transition: "background 0.1s",
+                }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = "#f5f0e8"; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ display: "flex", alignItems: "center", gap: 7, flex: 1, minWidth: 0 }}>
+                  {withSwatches && COLOR_SWATCHES[opt.value] && (
+                    <span style={{
+                      width: 12, height: 12, borderRadius: "50%", flexShrink: 0,
+                      background: COLOR_SWATCHES[opt.value],
+                      border: opt.value === "white" ? "1px solid #ccc" : "none",
+                    }} />
+                  )}
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {opt.label}
+                  </span>
+                </span>
+                <span style={{
+                  fontSize: 11, color: active ? "#1a6340" : "#9ca3af",
+                  background: active ? "#c8e8d8" : "#f3f4f6",
+                  borderRadius: 999, padding: "1px 7px", flexShrink: 0, marginLeft: 4,
+                }}>
+                  {opt.count}
+                </span>
+              </button>
+            );
+          })}
+          {options.length > SHOW && (
+            <button
+              type="button"
+              onClick={() => setShowAll(p => !p)}
+              style={{
+                background: "none", border: "none", padding: "4px 8px",
+                fontSize: 12, color: "#1f6f54", cursor: "pointer", textAlign: "left", fontWeight: 500,
+              }}
+            >
+              {showAll ? "Скрыть" : `Ещё ${options.length - SHOW}...`}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-export default function CatalogPage({
-  mugs = [],
-  countries = [],
-  cities = [],
-  people = [],
-  selectedCountryIso = "",
-  selectedCountryLabel = "",
-  language = "ru",
-}) {
-  const [search, setSearch] = useState("");
-  const [countryIsoFilter, setCountryIsoFilter] = useState(null);
-  const [cityFilter, setCityFilter] = useState("");
-  const [mugTypeFilter, setMugTypeFilter] = useState("");
-  const [colorFilterKeys, setColorFilterKeys] = useState([]);
-  const [hasNoteOnly, setHasNoteOnly] = useState(false);
-  const [sortBy, setSortBy] = useState("received-desc");
-  const [selectedPerson, setSelectedPerson] = useState(null);
+// ── Mobile filter sheet ───────────────────────────────────────────────────────
 
-  const ui = useMemo(() => getUiText(language), [language]);
-  const locale = language === "en" ? "en" : "ru";
-  const effectiveCountryFilter =
-    countryIsoFilter == null ? normalizeIso2(selectedCountryIso) : countryIsoFilter;
+function MobileFilterSheet({ isOpen, onClose, children, title }) {
+  useEffect(() => {
+    document.body.style.overflow = isOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [isOpen]);
 
-  const countriesById = useMemo(() => {
-    const map = new Map();
-
-    countries.forEach((country) => {
-      map.set(country.id, country);
-    });
-
-    return map;
-  }, [countries]);
-
-  const peopleById = useMemo(() => {
-    const map = new Map();
-
-    people.forEach((person) => {
-      map.set(person.id, person);
-    });
-
-    return map;
-  }, [people]);
-
-  const citiesById = useMemo(() => {
-    const map = new Map();
-
-    cities.forEach((city) => {
-      map.set(city.id, city);
-    });
-
-    return map;
-  }, [cities]);
-
-  const countryOptions = useMemo(() => {
-    return countries
-      .map((country) => ({
-        id: country.id,
-        iso: normalizeIso2(country.iso2_code),
-        label: getCountryLabel(country, language),
-      }))
-      .filter((country) => country.iso)
-      .sort((a, b) => a.label.localeCompare(b.label, locale));
-  }, [countries, language, locale]);
-
-  const mugTypeOptions = useMemo(() => {
-    const existingValues = mugs.flatMap((mug) =>
-      getTypeValues(mug.collection_keys, mug.mug_type)
-    );
-
-    return buildTypeOptions({
-      existingValues,
-      language,
-    });
-  }, [mugs, language]);
-
-  const preparedMugs = useMemo(() => {
-    return mugs.map((mug) => {
-      const country = countriesById.get(mug.country_id);
-      const countryIso = normalizeIso2(country?.iso2_code);
-      const city = citiesById.get(mug.city_id);
-
-      const mugPeople = Array.isArray(mug.brought_by_person_ids)
-        ? mug.brought_by_person_ids
-            .map((personId) => peopleById.get(personId))
-            .filter(Boolean)
-        : mug.brought_by_person_id && peopleById.get(mug.brought_by_person_id)
-        ? [peopleById.get(mug.brought_by_person_id)]
-        : [];
-
-      const cityText = city
-        ? language === "en"
-          ? city.name_en || city.name_ru || mug.city || ""
-          : city.name_ru || city.name_en || mug.city || ""
-        : getCityDisplayName(mug.city_key, mug.city, language) || getLocalizedValue(mug.city, language);
-
-      const cityFilterValue = city
-        ? city.key
-        : buildCityFilterValue(mug.city_key, mug.city, countryIso);
-
-      const colorKeys = ensureArray(mug.color_keys);
-      const typeValues = getTypeValues(mug.collection_keys, mug.mug_type);
-      const colorLabels = getColorLabels(colorKeys, language);
-      const typeLabels = getTypeLabels(typeValues, language);
-
-      return {
-        ...mug,
-        countryIso,
-        countryName: getCountryLabel(country, language),
-        countryNameRu: country?.name_ru || "",
-        countryNameEn: country?.name_en || "",
-        titleText: getLocalizedValue(mug.title, language),
-        cityText,
-        cityFilterValue,
-        noteText: getLocalizedValue(mug.note, language),
-        broughtByText: getLocalizedValue(mug.brought_by, language),
-        colorKeys,
-        typeValues,
-        colorLabels,
-        typeLabels,
-        mugPeople,
-      };
-    });
-  }, [mugs, countriesById, peopleById, citiesById, language]);
-
-  const colorFilterOptions = useMemo(() => {
-    const existingKeys = new Set();
-
-    preparedMugs.forEach((mug) => {
-      mug.colorKeys.forEach((key) => existingKeys.add(key));
-    });
-
-    return COLOR_OPTIONS.filter((option) => existingKeys.has(option.key));
-  }, [preparedMugs]);
-
-  const cityOptions = useMemo(() => {
-    const optionMap = new Map();
-
-    preparedMugs.forEach((mug) => {
-      if (!mug.cityText) return;
-      if (effectiveCountryFilter && mug.countryIso !== effectiveCountryFilter) return;
-
-      if (!optionMap.has(mug.cityFilterValue)) {
-        optionMap.set(mug.cityFilterValue, {
-          value: mug.cityFilterValue,
-          label: mug.cityText,
-        });
-      }
-    });
-
-    return [...optionMap.values()].sort((a, b) => a.label.localeCompare(b.label, locale));
-  }, [preparedMugs, effectiveCountryFilter, locale]);
-
-  const safeCityFilter = cityOptions.some((option) => option.value === cityFilter)
-    ? cityFilter
-    : "";
-
-  const filteredMugs = useMemo(() => {
-    let result = [...preparedMugs];
-
-    if (search.trim()) {
-      const query = search.trim().toLowerCase();
-
-      result = result.filter((mug) => {
-        const haystack = [
-          getSearchableValue(mug.title),
-          getSearchableValue(mug.city),
-          mug.cityText,
-          getSearchableValue(mug.mug_type),
-          getSearchableValue(mug.brought_by),
-          getSearchableValue(mug.note),
-          mug.countryName,
-          mug.countryNameRu,
-          mug.countryNameEn,
-          mug.countryIso,
-          mug.slug,
-          ...mug.colorLabels,
-          ...mug.typeLabels,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-
-        return haystack.includes(query);
-      });
-    }
-
-    if (effectiveCountryFilter) {
-      result = result.filter((mug) => mug.countryIso === effectiveCountryFilter);
-    }
-
-    if (safeCityFilter) {
-      result = result.filter((mug) => mug.cityFilterValue === safeCityFilter);
-    }
-
-    if (mugTypeFilter) {
-      result = result.filter((mug) => mug.typeValues.includes(mugTypeFilter));
-    }
-
-    if (colorFilterKeys.length > 0) {
-      result = result.filter((mug) => {
-        return mug.colorKeys.some((colorKey) => colorFilterKeys.includes(colorKey));
-      });
-    }
-
-    if (hasNoteOnly) {
-      result = result.filter((mug) => !!String(mug.noteText || "").trim());
-    }
-
-    switch (sortBy) {
-      case "title-asc":
-        result.sort((a, b) =>
-          (a.titleText || "").localeCompare(b.titleText || "", locale)
-        );
-        break;
-
-      case "title-desc":
-        result.sort((a, b) =>
-          (b.titleText || "").localeCompare(a.titleText || "", locale)
-        );
-        break;
-
-      case "country-asc":
-        result.sort((a, b) =>
-          (a.countryName || "").localeCompare(b.countryName || "", locale)
-        );
-        break;
-
-      case "city-asc":
-        result.sort((a, b) =>
-          (a.cityText || "").localeCompare(b.cityText || "", locale)
-        );
-        break;
-
-      case "received-asc":
-        result.sort((a, b) =>
-          String(a.received_at || "").localeCompare(String(b.received_at || ""))
-        );
-        break;
-
-      case "received-desc":
-      default:
-        result.sort((a, b) =>
-          String(b.received_at || "").localeCompare(String(a.received_at || ""))
-        );
-        break;
-    }
-
-    return result;
-  }, [
-    preparedMugs,
-    search,
-    effectiveCountryFilter,
-    safeCityFilter,
-    mugTypeFilter,
-    colorFilterKeys,
-    hasNoteOnly,
-    sortBy,
-    locale,
-  ]);
-
-  const activeCountryFromFilter = useMemo(() => {
-    if (!effectiveCountryFilter) return null;
-
-    return (
-      countryOptions.find((country) => country.iso === effectiveCountryFilter) || null
-    );
-  }, [countryOptions, effectiveCountryFilter]);
-
-  function toggleFilterValue(setter, currentValues, optionKey) {
-    setter(
-      currentValues.includes(optionKey)
-        ? currentValues.filter((value) => value !== optionKey)
-        : [...currentValues, optionKey]
-    );
-  }
-
-  function resetFilters() {
-    setSearch("");
-    setCountryIsoFilter(null);
-    setCityFilter("");
-    setMugTypeFilter("");
-    setColorFilterKeys([]);
-    setHasNoteOnly(false);
-    setSortBy("received-desc");
-  }
-
-  function clearCountryFilter() {
-    setCountryIsoFilter("");
-    setCityFilter("");
-  }
+  if (!isOpen) return null;
 
   return (
-    <main style={styles.page}>
-      <div style={styles.headerBlock}>
-        <div>
-          <h2 style={styles.title}>
-            {tr(
-              language,
-              "catalogTitle",
-              language === "en" ? "Mug Catalog" : "Каталог кружек"
-            )}
-          </h2>
-
-          <p style={styles.subtitle}>
-            {tr(
-              language,
-              "catalogSubtitle",
-              language === "en"
-                ? "Marketplace-style layout: filters on the left, mug cards on the right."
-                : "Формат маркетплейса: фильтры слева, карточки кружек справа."
-            )}
-          </p>
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 300 }} />
+      <div style={{
+        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 301,
+        background: "#fff", borderRadius: "20px 20px 0 0",
+        maxHeight: "85vh", display: "flex", flexDirection: "column",
+        boxShadow: "0 -8px 40px rgba(0,0,0,0.15)",
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "16px 20px", borderBottom: "0.5px solid #e8e2d9", flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 16, fontWeight: 600, color: "#153126" }}>{title}</span>
+          <button type="button" onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#9ca3af" }}>✕</button>
         </div>
-
-        <div style={styles.topStats}>
-          <div style={styles.topStat}>
-            <span style={styles.topStatValue}>{mugs.length}</span>
-            <span style={styles.topStatLabel}>
-              {tr(
-                language,
-                "totalMugs",
-                language === "en" ? "total mugs" : "всего кружек"
-              )}
-            </span>
-          </div>
-
-          <div style={styles.topStat}>
-            <span style={styles.topStatValue}>{filteredMugs.length}</span>
-            <span style={styles.topStatLabel}>
-              {tr(
-                language,
-                "filteredMugs",
-                language === "en" ? "after filtering" : "после фильтрации"
-              )}
-            </span>
-          </div>
-        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 32px" }}>{children}</div>
       </div>
-
-      {(selectedCountryIso || selectedCountryLabel) && (
-        <div style={styles.selectedCountryBanner}>
-          <div>
-            <strong>{ui.filterFromMap}</strong>{" "}
-            {getLocalizedValue(selectedCountryLabel, language) ||
-              activeCountryFromFilter?.label ||
-              selectedCountryIso}
-          </div>
-
-          <div style={styles.bannerActions}>
-            <button
-              type="button"
-              onClick={() =>
-                setCountryIsoFilter(normalizeIso2(selectedCountryIso || ""))
-              }
-              style={styles.bannerButton}
-            >
-              {ui.applyCountry}
-            </button>
-
-            <button
-              type="button"
-              onClick={clearCountryFilter}
-              style={styles.bannerButtonSecondary}
-            >
-              {ui.removeCountryFilter}
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div style={styles.layout}>
-        <aside style={styles.sidebar}>
-          <div style={styles.filterCard}>
-            <h3 style={styles.filterTitle}>
-              {tr(language, "filters", language === "en" ? "Filters" : "Фильтры")}
-            </h3>
-
-            <div style={styles.field}>
-              <label style={styles.label}>
-                {tr(language, "search", language === "en" ? "Search" : "Поиск")}
-              </label>
-
-              <input
-                type="text"
-                placeholder={tr(
-                  language,
-                  "searchPlaceholder",
-                  language === "en"
-                    ? "Title, note, who brought it, collection..."
-                    : "Название, заметка, кто привёз, тип..."
-                )}
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                style={styles.input}
-              />
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>
-                {tr(language, "country", language === "en" ? "Country" : "Страна")}
-              </label>
-
-              <select
-                value={countryIsoFilter ?? ""}
-                onChange={(event) => setCountryIsoFilter(event.target.value)}
-                style={styles.select}
-              >
-                <option value="">
-                  {tr(
-                    language,
-                    "allCountries",
-                    language === "en" ? "All countries" : "Все страны"
-                  )}
-                </option>
-
-                {countryOptions.map((country) => (
-                  <option key={country.iso} value={country.iso}>
-                    {country.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>
-                {tr(language, "city", language === "en" ? "City" : "Город")}
-              </label>
-
-              <select
-                value={safeCityFilter}
-                onChange={(event) => setCityFilter(event.target.value)}
-                style={styles.select}
-              >
-                <option value="">{ui.allCities}</option>
-                {cityOptions.map((city) => (
-                  <option key={city.value} value={city.value}>
-                    {city.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>
-                {tr(
-                  language,
-                  "mugType",
-                  language === "en" ? "Mug type" : "Тип кружки"
-                )}
-              </label>
-
-              <select
-                value={mugTypeFilter}
-                onChange={(event) => setMugTypeFilter(event.target.value)}
-                style={styles.select}
-              >
-                <option value="">
-                  {tr(
-                    language,
-                    "allTypes",
-                    language === "en" ? "All types" : "Все типы"
-                  )}
-                </option>
-
-                {mugTypeOptions.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {colorFilterOptions.length > 0 && (
-              <div style={styles.field}>
-                <label style={styles.label}>{ui.colors}</label>
-                <FilterChipGroup
-                  options={colorFilterOptions}
-                  selectedValues={colorFilterKeys}
-                  onToggle={(optionKey) =>
-                    toggleFilterValue(setColorFilterKeys, colorFilterKeys, optionKey)
-                  }
-                  language={language}
-                  showSwatch
-                />
-              </div>
-            )}
-
-            <label style={styles.checkboxRow}>
-              <input
-                type="checkbox"
-                checked={hasNoteOnly}
-                onChange={(event) => setHasNoteOnly(event.target.checked)}
-              />
-              <span>
-                {tr(
-                  language,
-                  "onlyWithNotes",
-                  language === "en" ? "Only with notes" : "Только с заметками"
-                )}
-              </span>
-            </label>
-
-            <div style={styles.field}>
-              <label style={styles.label}>
-                {tr(
-                  language,
-                  "sorting",
-                  language === "en" ? "Sorting" : "Сортировка"
-                )}
-              </label>
-
-              <select
-                value={sortBy}
-                onChange={(event) => setSortBy(event.target.value)}
-                style={styles.select}
-              >
-                <option value="received-desc">
-                  {tr(
-                    language,
-                    "sortNewest",
-                    language === "en" ? "Newest first" : "Сначала новые"
-                  )}
-                </option>
-
-                <option value="received-asc">
-                  {tr(
-                    language,
-                    "sortOldest",
-                    language === "en" ? "Oldest first" : "Сначала старые"
-                  )}
-                </option>
-
-                <option value="title-asc">{ui.sortTitleAsc}</option>
-                <option value="title-desc">{ui.sortTitleDesc}</option>
-                <option value="country-asc">{ui.sortCountryAsc}</option>
-                <option value="city-asc">{ui.sortCityAsc}</option>
-              </select>
-            </div>
-
-            <button type="button" onClick={resetFilters} style={styles.resetButton}>
-              {tr(
-                language,
-                "resetFilters",
-                language === "en" ? "Reset filters" : "Сбросить фильтры"
-              )}
-            </button>
-          </div>
-        </aside>
-
-        <section style={styles.content}>
-          <div style={styles.resultsBar}>
-            <div style={styles.resultsLeft}>
-              <span style={styles.resultsText}>
-                {tr(
-                  language,
-                  "found",
-                  language === "en" ? "Found: {{count}}" : "Найдено: {{count}}",
-                  { count: filteredMugs.length }
-                )}
-              </span>
-
-              {activeCountryFromFilter && (
-                <span style={styles.activeChip}>{activeCountryFromFilter.label}</span>
-              )}
-
-              {safeCityFilter &&
-                cityOptions
-                  .filter((city) => city.value === safeCityFilter)
-                  .map((city) => (
-                    <span key={city.value} style={styles.activeChip}>
-                      {city.label}
-                    </span>
-                  ))}
-
-              {mugTypeFilter && (
-                <span style={styles.activeChip}>
-                  {mugTypeOptions.find((option) => option.value === mugTypeFilter)?.label ||
-                    mugTypeFilter}
-                </span>
-              )}
-
-              {colorFilterKeys.map((colorKey) => {
-                const option = COLOR_OPTIONS.find((item) => item.key === colorKey);
-                if (!option) return null;
-
-                return (
-                  <span key={colorKey} style={styles.activeChip}>
-                    {ui.colorChipLabel}: {getLocalizedOptionLabel(option, language)}
-                  </span>
-                );
-              })}
-
-              {hasNoteOnly && (
-                <span style={styles.activeChip}>{ui.withNotesChip}</span>
-              )}
-            </div>
-          </div>
-
-          {filteredMugs.length === 0 ? (
-            <div style={styles.emptyState}>
-              <h3 style={styles.emptyTitle}>{ui.nothingFound}</h3>
-              <p style={styles.emptyText}>{ui.emptyText}</p>
-            </div>
-          ) : (
-            <div style={styles.grid}>
-              {filteredMugs.map((mug) => (
-                <article key={mug.id} style={styles.card}>
-                  <div style={styles.imageWrap}>
-                    {mug.mug_images?.length ? (
-                      <MugCarousel
-                        images={mug.mug_images}
-                        fallbackAlt={mug.titleText || ui.mugFallbackAlt}
-                      />
-                    ) : (
-                      <div style={styles.imageFallback}>
-                        {tr(language, "noPhotos", ui.noPhotos)}
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={styles.cardBody}>
-                    <h3 style={styles.cardTitle}>
-                      {mug.titleText || ui.untitledMug}
-                    </h3>
-
-                    {(mug.typeLabels.length > 0 || mug.colorLabels.length > 0) && (
-                      <div style={styles.attributeBlock}>
-                        {mug.typeLabels.length > 0 && (
-                          <div style={styles.attributeSection}>
-                            <span style={styles.attributeLabel}>{ui.types}</span>
-                            <div style={styles.inlineChips}>
-                              {mug.typeLabels.map((label) => (
-                                <span key={`${mug.id}-${label}`} style={styles.inlineChip}>
-                                  {label}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {mug.colorLabels.length > 0 && (
-                          <div style={styles.attributeSection}>
-                            <span style={styles.attributeLabel}>{ui.colors}</span>
-                            <div style={styles.inlineChips}>
-                              {mug.colorKeys.map((colorKey) => {
-                                const option = COLOR_OPTIONS.find((item) => item.key === colorKey);
-                                if (!option) return null;
-
-                                return (
-                                  <span key={`${mug.id}-${colorKey}`} style={styles.inlineChip}>
-                                    <span
-                                      aria-hidden="true"
-                                      style={{
-                                        ...styles.colorDot,
-                                        background: option.swatch,
-                                      }}
-                                    />
-                                    {getLocalizedOptionLabel(option, language)}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div style={styles.metaList}>
-                      <div style={styles.metaItem}>
-                        <span style={styles.metaLabel}>
-                          {tr(
-                            language,
-                            "country",
-                            language === "en" ? "Country" : "Страна"
-                          )}
-                        </span>
-                        <span style={styles.metaValue}>{mug.countryName || "—"}</span>
-                      </div>
-
-                      <div style={styles.metaItem}>
-                        <span style={styles.metaLabel}>
-                          {tr(language, "city", language === "en" ? "City" : "Город")}
-                        </span>
-                        <span style={styles.metaValue}>{mug.cityText || "—"}</span>
-                      </div>
-
-                      <div style={styles.metaItem}>
-                        <span style={styles.metaLabel}>
-                          {tr(
-                            language,
-                            "receivedAt",
-                            language === "en" ? "Received" : "Когда получена"
-                          )}
-                        </span>
-                        <span style={styles.metaValue}>
-                          {formatDate(mug.received_at)}
-                        </span>
-                      </div>
-
-                      <div style={styles.metaItem}>
-                        <span style={styles.metaLabel}>
-                          {tr(
-                            language,
-                            "broughtBy",
-                            language === "en" ? "Brought by" : "Кто привёз"
-                          )}
-                        </span>
-                        <span style={styles.metaValue}>
-                          {mug.mugPeople && mug.mugPeople.length > 0 ? (
-                            <span>
-                              {mug.mugPeople.map((person, index) => (
-                                <span key={person.id}>
-                                  {index > 0 && ", "}
-                                  <button
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      setSelectedPerson(person);
-                                    }}
-                                    style={styles.personLink}
-                                  >
-                                    {person.first_name} {person.last_name}
-                                  </button>
-                                </span>
-                              ))}
-                            </span>
-                          ) : (
-                            mug.broughtByText || "—"
-                          )}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div style={styles.noteBlock}>
-                      <div style={styles.noteTitle}>
-                        {tr(language, "note", language === "en" ? "Note" : "Заметка")}
-                      </div>
-                      <div style={styles.noteText}>
-                        {mug.noteText || tr(language, "noNote", ui.noNote)}
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
-
-      {selectedPerson && (
-        <PersonDetailModal
-          person={selectedPerson}
-          mugs={mugs}
-          countries={countries}
-          language={language}
-          onClose={() => setSelectedPerson(null)}
-        />
-      )}
-    </main>
+    </>
   );
 }
 
-const styles = {
-  page: {
-    display: "grid",
-    gap: "24px",
-  },
-  headerBlock: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: "16px",
-    flexWrap: "wrap",
-  },
-  title: {
-    margin: 0,
-    fontSize: "32px",
-    lineHeight: 1.1,
-    color: "#1f2937",
-  },
-  subtitle: {
-    marginTop: "10px",
-    marginBottom: 0,
-    fontSize: "15px",
-    color: "#4b5563",
-    maxWidth: "760px",
-  },
-  topStats: {
-    display: "flex",
-    gap: "12px",
-    flexWrap: "wrap",
-  },
-  topStat: {
-    minWidth: "130px",
-    padding: "14px 16px",
-    borderRadius: "18px",
-    background: "#fff8f0",
-    border: "1px solid #eadfce",
-    display: "grid",
-    gap: "4px",
-  },
-  topStatValue: {
-    fontSize: "22px",
-    fontWeight: 700,
-    color: "#1f2937",
-  },
-  topStatLabel: {
-    fontSize: "13px",
-    color: "#6b7280",
-  },
-  selectedCountryBanner: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "12px",
-    flexWrap: "wrap",
-    padding: "14px 16px",
-    borderRadius: "18px",
-    background: "#eef6f1",
-    border: "1px solid #cfe3d6",
-    color: "#1f2937",
-  },
-  bannerActions: {
-    display: "flex",
-    gap: "10px",
-    flexWrap: "wrap",
-  },
-  bannerButton: {
-    padding: "10px 14px",
-    borderRadius: "12px",
-    border: "1px solid #1f6f54",
-    background: "#1f6f54",
-    color: "#fff",
-    fontSize: "14px",
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  bannerButtonSecondary: {
-    padding: "10px 14px",
-    borderRadius: "12px",
-    border: "1px solid #d1d5db",
-    background: "#fff",
-    color: "#111827",
-    fontSize: "14px",
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  layout: {
-    display: "grid",
-    gridTemplateColumns: "320px 1fr",
-    gap: "24px",
-    alignItems: "start",
-  },
-  sidebar: {
-    position: "sticky",
-    top: "24px",
-  },
-  filterCard: {
-    background: "#ffffff",
-    borderRadius: "22px",
-    padding: "20px",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-    border: "1px solid #ececec",
-  },
-  filterTitle: {
-    marginTop: 0,
-    marginBottom: "18px",
-    fontSize: "22px",
-    color: "#111827",
-  },
-  field: {
-    marginBottom: "18px",
-  },
-  label: {
-    display: "block",
-    marginBottom: "8px",
-    fontSize: "14px",
-    fontWeight: 600,
-    color: "#374151",
-  },
-  input: {
-    width: "100%",
-    padding: "12px 14px",
-    borderRadius: "12px",
-    border: "1px solid #d1d5db",
-    fontSize: "14px",
-    boxSizing: "border-box",
-    background: "#fff",
-    outline: "none",
-  },
-  select: {
-    width: "100%",
-    padding: "12px 14px",
-    borderRadius: "12px",
-    border: "1px solid #d1d5db",
-    fontSize: "14px",
-    boxSizing: "border-box",
-    background: "#fff",
-    outline: "none",
-  },
-  checkboxRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    marginBottom: "18px",
-    color: "#374151",
-  },
-  chipGroup: {
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap",
-  },
-  filterChip: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "8px",
-    padding: "9px 12px",
-    borderRadius: "999px",
-    border: "1px solid #d1d5db",
-    background: "#ffffff",
-    color: "#374151",
-    cursor: "pointer",
-    fontSize: "13px",
-    fontWeight: 600,
-  },
-  filterChipActive: {
-    background: "#ecf7f1",
-    borderColor: "#1f6f54",
-    color: "#15563f",
-  },
-  resetButton: {
-    width: "100%",
-    border: "1px solid #d1d5db",
-    background: "#ffffff",
-    color: "#111827",
-    borderRadius: "14px",
-    padding: "12px 16px",
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-  content: {
-    display: "grid",
-    gap: "18px",
-  },
-  resultsBar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "12px",
-    flexWrap: "wrap",
-  },
-  resultsLeft: {
-    display: "flex",
-    gap: "10px",
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
-  resultsText: {
-    fontSize: "14px",
-    color: "#374151",
-    fontWeight: 600,
-  },
-  activeChip: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "6px",
-    padding: "8px 10px",
-    borderRadius: "999px",
-    background: "#f3f4f6",
-    color: "#374151",
-    fontSize: "13px",
-    fontWeight: 600,
-  },
-  emptyState: {
-    borderRadius: "22px",
-    background: "#ffffff",
-    border: "1px dashed #d1d5db",
-    padding: "30px",
-    textAlign: "center",
-  },
-  emptyTitle: {
-    marginTop: 0,
-    marginBottom: "8px",
-    color: "#111827",
-  },
-  emptyText: {
-    margin: 0,
-    color: "#6b7280",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-    gap: "18px",
-  },
-  card: {
-    background: "#ffffff",
-    borderRadius: "24px",
-    overflow: "hidden",
-    border: "1px solid #ececec",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.05)",
-  },
-  imageWrap: {
-    background: "#f8f5ef",
-  },
-  imageFallback: {
-    minHeight: "280px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#6b7280",
-    fontWeight: 600,
-  },
-  cardBody: {
-    padding: "18px",
-    display: "grid",
-    gap: "16px",
-  },
-  cardTitle: {
-    margin: 0,
-    color: "#111827",
-    fontSize: "22px",
-    lineHeight: 1.2,
-  },
-  attributeBlock: {
-    display: "grid",
-    gap: "10px",
-  },
-  attributeSection: {
-    display: "grid",
-    gap: "6px",
-  },
-  attributeLabel: {
-    fontSize: "12px",
-    fontWeight: 700,
-    letterSpacing: "0.06em",
-    textTransform: "uppercase",
-    color: "#6b7280",
-  },
-  inlineChips: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "8px",
-  },
-  inlineChip: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "6px",
-    padding: "7px 10px",
-    borderRadius: "999px",
-    background: "#f3f4f6",
-    color: "#374151",
-    fontSize: "13px",
-    fontWeight: 600,
-  },
-  colorDot: {
-    width: "12px",
-    height: "12px",
-    borderRadius: "999px",
-    border: "1px solid rgba(15, 23, 42, 0.12)",
-    flexShrink: 0,
-  },
-  metaList: {
-    display: "grid",
-    gap: "12px",
-  },
-  metaItem: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "12px",
-    alignItems: "flex-start",
-    paddingBottom: "10px",
-    borderBottom: "1px solid #f0f0f0",
-  },
-  metaLabel: {
-    color: "#6b7280",
-    fontSize: "13px",
-    minWidth: "110px",
-  },
-  metaValue: {
-    color: "#111827",
-    fontSize: "14px",
-    textAlign: "right",
-  },
-  personLink: {
-    background: "none",
-    border: "none",
-    color: "#2F7D57",
-    cursor: "pointer",
-    textDecoration: "underline",
-    padding: 0,
-    font: "inherit",
-  },
-  noteBlock: {
-    borderRadius: "18px",
-    background: "#faf7f2",
-    border: "1px solid #efe7dc",
-    padding: "14px",
-  },
-  noteTitle: {
-    fontSize: "13px",
-    fontWeight: 700,
-    color: "#6b7280",
-    marginBottom: "8px",
-  },
-  noteText: {
-    color: "#374151",
-    lineHeight: 1.6,
-    fontSize: "14px",
-  },
-};
+// ── CatalogPage ───────────────────────────────────────────────────────────────
+
+function CatalogPage({
+  mugs = [],
+  countries = [],
+  states = [],
+  cities = [],
+  people = [],
+  selectedCountryIso = "",
+  selectedStateCode = "",
+  selectedCountryLabel = "",
+  language = "ru",
+  isAdmin = false,
+  onMugChanged,
+}) {
+  const ui = LABELS[language] || LABELS.ru;
+
+  const [editingMug, setEditingMug] = useState(null);
+
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < SIDEBAR_BREAKPOINT);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [mobileSortOpen, setMobileSortOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < SIDEBAR_BREAKPOINT);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  const countriesById = useMemo(() => { const m = new Map(); countries.forEach(c => m.set(String(c.id), c)); return m; }, [countries]);
+  const countriesByIso = useMemo(() => { const m = new Map(); countries.forEach(c => { const iso = normalizeIso2(c.iso2_code); if (iso) m.set(iso, c); }); return m; }, [countries]);
+  const statesById = useMemo(() => { const m = new Map(); states.forEach(s => m.set(String(s.id), s)); return m; }, [states]);
+  const statesByCode = useMemo(() => { const m = new Map(); states.forEach(s => { const cid = String(s.country_id || ""); const code = normalizeText(s.code || ""); if (cid && code) m.set(`${cid}:${code}`, s); }); return m; }, [states]);
+  const citiesById = useMemo(() => { const m = new Map(); cities.forEach(c => m.set(String(c.id), c)); return m; }, [cities]);
+
+  const initialCountryId = useMemo(() => {
+    const iso = normalizeIso2(selectedCountryIso);
+    if (!iso) return EMPTY_VALUE;
+    const c = countriesByIso.get(iso);
+    return c ? String(c.id) : EMPTY_VALUE;
+  }, [countriesByIso, selectedCountryIso]);
+
+  const initialStateId = useMemo(() => {
+    if (!initialCountryId || !selectedStateCode) return EMPTY_VALUE;
+    const s = statesByCode.get(`${initialCountryId}:${normalizeText(selectedStateCode)}`);
+    return s ? String(s.id) : EMPTY_VALUE;
+  }, [initialCountryId, selectedStateCode, statesByCode]);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [countryFilter, setCountryFilter] = useState(initialCountryId);
+  const [stateFilter, setStateFilter] = useState(initialStateId);
+  const [cityFilter, setCityFilter] = useState(EMPTY_VALUE);
+  const [collectionFilter, setCollectionFilter] = useState(EMPTY_VALUE);
+  const [colorFilter, setColorFilter] = useState(EMPTY_VALUE);
+  const [sortMode, setSortMode] = useState("newest");
+
+  useEffect(() => { if (initialCountryId) setCountryFilter(initialCountryId); }, [initialCountryId]);
+  useEffect(() => { if (initialStateId) setStateFilter(initialStateId); }, [initialStateId]);
+
+  function getCountryName(c) {
+    if (!c) return ui.unknown;
+    return language === "en" ? (c.name_en || c.name_ru || c.iso2_code || ui.unknown) : (c.name_ru || c.name_en || c.iso2_code || ui.unknown);
+  }
+  function getStateName(s) {
+    if (!s) return "";
+    return language === "en" ? (s.name_en || s.name_ru || s.code || "") : (s.name_ru || s.name_en || s.code || "");
+  }
+  function getCityText(mug) {
+    const city = citiesById.get(String(mug.city_id || ""));
+    if (city) {
+      return language === "en"
+        ? (city.name_en || city.name_ru || mug.city || ui.unknown)
+        : (city.name_ru || city.name_en || mug.city || ui.unknown);
+    }
+    // Legacy: use mug.city text directly (already localized in DB)
+    return mug.city || mug.city_key || ui.unknown;
+  }
+  function getCollectionLabel(token) { return COLLECTION_LABELS[language]?.[token] || COLLECTION_LABELS.ru[token] || prettifyToken(token); }
+  function getColorLabel(token) { return COLOR_LABELS[language]?.[token] || COLOR_LABELS.ru[token] || prettifyToken(token); }
+
+  function mugMatchesGeo(mug) {
+    if (countryFilter && String(mug.country_id || "") !== countryFilter) return false;
+    if (stateFilter && String(mug.state_id || "") !== stateFilter) return false;
+    if (cityFilter && makeCityFilterKey(mug) !== cityFilter) return false;
+    return true;
+  }
+
+  // ── Filter options with counts ──
+
+  const countryOptions = useMemo(() => {
+    const counts = new Map();
+    mugs.forEach(m => {
+      const k = String(m.country_id || "");
+      if (k) counts.set(k, (counts.get(k) || 0) + 1);
+    });
+    return countries
+      .filter(c => counts.has(String(c.id)))
+      .map(c => ({ value: String(c.id), label: getCountryName(c), count: counts.get(String(c.id)) || 0 }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [countries, mugs, language]);
+
+  const stateOptions = useMemo(() => {
+    const map = new Map();
+    mugs.forEach(mug => {
+      if (countryFilter && String(mug.country_id || "") !== countryFilter) return;
+      const s = statesById.get(String(mug.state_id || ""));
+      if (!s) return;
+      const k = String(s.id);
+      if (!map.has(k)) map.set(k, { value: k, label: getStateName(s), count: 0 });
+      map.get(k).count++;
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [mugs, statesById, countryFilter, language]);
+
+  const cityOptions = useMemo(() => {
+    const map = new Map();
+    mugs.forEach(mug => {
+      if (countryFilter && String(mug.country_id || "") !== countryFilter) return;
+      if (stateFilter && String(mug.state_id || "") !== stateFilter) return;
+      const key = makeCityFilterKey(mug);
+      if (!key) return;
+      if (!map.has(key)) {
+        // Prefer name from cities table (localized), fallback to mug.city
+        const cityRecord = citiesById.get(String(mug.city_id || ""));
+        const label = cityRecord
+          ? (language === "en" ? (cityRecord.name_en || cityRecord.name_ru) : (cityRecord.name_ru || cityRecord.name_en)) || mug.city || key
+          : mug.city || key;
+        map.set(key, { value: key, label: label || key, count: 0 });
+      }
+      map.get(key).count++;
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [mugs, citiesById, countryFilter, stateFilter, language]);
+
+  const collectionOptions = useMemo(() => {
+    const counts = new Map();
+    mugs.forEach(mug => {
+      if (!mugMatchesGeo(mug)) return;
+      parseTokenList(mug.collection_keys).forEach(t => counts.set(t, (counts.get(t) || 0) + 1));
+    });
+    return Array.from(counts.entries())
+      .map(([t, count]) => ({ value: t, label: getCollectionLabel(t), count }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [mugs, countryFilter, stateFilter, cityFilter, language]);
+
+  const colorOptions = useMemo(() => {
+    const counts = new Map();
+    mugs.forEach(mug => {
+      if (!mugMatchesGeo(mug)) return;
+      parseTokenList(mug.color_keys).forEach(t => counts.set(t, (counts.get(t) || 0) + 1));
+    });
+    return Array.from(counts.entries())
+      .map(([t, count]) => ({ value: t, label: getColorLabel(t), count }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [mugs, countryFilter, stateFilter, cityFilter, language]);
+
+  // ── Filtered mugs ──
+
+  const filteredMugs = useMemo(() => {
+    const query = normalizeText(searchQuery);
+    return mugs
+      .filter(mug => {
+        if (!mugMatchesGeo(mug)) return false;
+        if (collectionFilter && !parseTokenList(mug.collection_keys).includes(collectionFilter)) return false;
+        if (colorFilter && !parseTokenList(mug.color_keys).includes(colorFilter)) return false;
+        if (!query) return true;
+        const country = countriesById.get(String(mug.country_id || ""));
+        const state = statesById.get(String(mug.state_id || ""));
+        const text = [
+          mug.title, mug.slug, mug.city, mug.city_key, getCityText(mug),
+          mug.mug_type, mug.brought_by, mug.note,
+          getCountryName(country), getStateName(state),
+          ...parseTokenList(mug.collection_keys).map(getCollectionLabel),
+          ...parseTokenList(mug.color_keys).map(getColorLabel),
+        ].map(normalizeText).join(" ");
+        return text.includes(query);
+      })
+      .sort((a, b) => {
+        if (sortMode === "oldest") return getDateTime(a.received_at) - getDateTime(b.received_at);
+        if (sortMode === "titleAsc") return String(a.title || "").localeCompare(String(b.title || ""));
+        return getDateTime(b.received_at) - getDateTime(a.received_at);
+      });
+  }, [mugs, searchQuery, countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter, sortMode, countriesById, statesById, citiesById, language]);
+
+  function handleCountryChange(v) { setCountryFilter(v); setStateFilter(EMPTY_VALUE); setCityFilter(EMPTY_VALUE); }
+  function handleStateChange(v) { setStateFilter(v); setCityFilter(EMPTY_VALUE); }
+
+  function resetFilters() {
+    setSearchQuery(""); setCountryFilter(EMPTY_VALUE); setStateFilter(EMPTY_VALUE);
+    setCityFilter(EMPTY_VALUE); setCollectionFilter(EMPTY_VALUE); setColorFilter(EMPTY_VALUE);
+    setSortMode("newest");
+  }
+
+  // Active filter tags
+  const activeTags = useMemo(() => {
+    const tags = [];
+    if (countryFilter) {
+      const c = countries.find(x => String(x.id) === countryFilter);
+      if (c) tags.push({ key: "country", label: getCountryName(c), clear: () => handleCountryChange(EMPTY_VALUE) });
+    }
+    if (stateFilter) {
+      const s = statesById.get(stateFilter);
+      if (s) tags.push({ key: "state", label: getStateName(s), clear: () => handleStateChange(EMPTY_VALUE) });
+    }
+    if (cityFilter) {
+      const opt = cityOptions.find(o => o.value === cityFilter);
+      if (opt) tags.push({ key: "city", label: opt.label, clear: () => setCityFilter(EMPTY_VALUE) });
+    }
+    if (collectionFilter) {
+      tags.push({ key: "collection", label: getCollectionLabel(collectionFilter), clear: () => setCollectionFilter(EMPTY_VALUE) });
+    }
+    if (colorFilter) {
+      tags.push({ key: "color", label: getColorLabel(colorFilter), clear: () => setColorFilter(EMPTY_VALUE) });
+    }
+    return tags;
+  }, [countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter, countries, statesById, cityOptions, language]);
+
+  const sortLabel = { newest: ui.newest, oldest: ui.oldest, titleAsc: ui.titleAsc }[sortMode] || ui.newest;
+
+  const SidebarContent = () => (
+    <>
+      <FilterSection title={ui.country} options={countryOptions} selected={countryFilter} onSelect={handleCountryChange} />
+      {stateOptions.length > 0 && (
+        <FilterSection title={ui.state} options={stateOptions} selected={stateFilter} onSelect={handleStateChange} />
+      )}
+      {cityOptions.length > 0 && (
+        <FilterSection title={ui.city} options={cityOptions} selected={cityFilter} onSelect={setCityFilter} />
+      )}
+      {collectionOptions.length > 0 && (
+        <FilterSection title={ui.collection} options={collectionOptions} selected={collectionFilter} onSelect={setCollectionFilter} />
+      )}
+      {colorOptions.length > 0 && (
+        <FilterSection title={ui.color} options={colorOptions} selected={colorFilter} onSelect={setColorFilter} withSwatches />
+      )}
+    </>
+  );
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "240px 1fr", minHeight: 600, background: "#faf7f3" }}>
+
+      {/* ── Desktop sidebar ── */}
+      {!isMobile && (
+        <div style={{
+          background: "#fff", borderRight: "0.5px solid #e8e2d9",
+          padding: "16px 14px", display: "flex", flexDirection: "column", gap: 4,
+          alignSelf: "start", position: "sticky", top: 0, maxHeight: "100vh", overflowY: "auto",
+        }}>
+          <div style={{ padding: "6px 8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#31443a", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {ui.filters}
+            </span>
+            {activeTags.length > 0 && (
+              <button type="button" onClick={resetFilters} style={{ background: "none", border: "none", fontSize: 11, color: "#1f6f54", cursor: "pointer", fontWeight: 600 }}>
+                {ui.clearAll}
+              </button>
+            )}
+          </div>
+          <SidebarContent />
+        </div>
+      )}
+
+      {/* ── Main ── */}
+      <div style={{ display: "flex", flexDirection: "column" }}>
+
+        {/* Mobile top bar */}
+        {isMobile && (
+          <div style={{ display: "flex", gap: 8, padding: "10px 12px", background: "#fff", borderBottom: "0.5px solid #e8e2d9" }}>
+            <button
+              type="button"
+              onClick={() => setMobileFiltersOpen(true)}
+              style={{
+                flex: 1, padding: "9px 14px", border: "0.5px solid #e8e2d9", borderRadius: 10,
+                background: activeTags.length > 0 ? "#e8f5ee" : "#fff",
+                color: activeTags.length > 0 ? "#1a6340" : "#374151",
+                fontSize: 13, fontWeight: 500, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}
+            >
+              ⚙ {ui.filters}
+              {activeTags.length > 0 && (
+                <span style={{ background: "#1f6f54", color: "#fff", borderRadius: 999, padding: "1px 7px", fontSize: 11, fontWeight: 700 }}>
+                  {activeTags.length}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileSortOpen(true)}
+              style={{
+                flex: 1, padding: "9px 14px", border: "0.5px solid #e8e2d9", borderRadius: 10,
+                background: "#fff", color: "#374151",
+                fontSize: 13, fontWeight: 500, cursor: "pointer",
+              }}
+            >
+              ↕ {sortLabel}
+            </button>
+          </div>
+        )}
+
+        {/* Search + sort header */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+          padding: "12px 16px", background: "#fff", borderBottom: "0.5px solid #e8e2d9",
+        }}>
+          <div style={{ position: "relative", flex: "1 1 200px" }}>
+            <span style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: "#8a9e96", pointerEvents: "none" }}>🔍</span>
+            <input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder={ui.searchPlaceholder}
+              style={{
+                width: "100%", border: "0.5px solid #e2ddd4", borderRadius: 10,
+                padding: "9px 12px 9px 34px", fontSize: 13, outline: "none",
+                background: "#faf7f3", color: "#1f2937", boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {!isMobile && (
+            <select
+              value={sortMode}
+              onChange={e => setSortMode(e.target.value)}
+              style={{
+                padding: "9px 12px", border: "0.5px solid #e2ddd4", borderRadius: 10,
+                background: "#faf7f3", fontSize: 13, color: "#374151", outline: "none", cursor: "pointer",
+              }}
+            >
+              <option value="newest">{ui.newest}</option>
+              <option value="oldest">{ui.oldest}</option>
+              <option value="titleAsc">{ui.titleAsc}</option>
+            </select>
+          )}
+
+          <span style={{ fontSize: 12, color: "#8a9e96", whiteSpace: "nowrap" }}>
+            {ui.found}: <strong style={{ color: "#153126" }}>{filteredMugs.length}</strong> {ui.mugs}
+          </span>
+        </div>
+
+        {/* Active filter tags */}
+        {activeTags.length > 0 && (
+          <div style={{
+            display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center",
+            padding: "8px 16px", background: "#fff", borderBottom: "0.5px solid #e8e2d9",
+          }}>
+            {activeTags.map(tag => (
+              <button
+                key={tag.key}
+                type="button"
+                onClick={tag.clear}
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "3px 10px 3px 8px", borderRadius: 999,
+                  background: "#e8f5ee", color: "#1a6340",
+                  border: "none", fontSize: 12, fontWeight: 500, cursor: "pointer",
+                }}
+              >
+                {tag.label}
+                <span style={{ fontSize: 14, opacity: 0.6, lineHeight: 1 }}>×</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={resetFilters}
+              style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 12, color: "#1f6f54", cursor: "pointer", fontWeight: 600 }}
+            >
+              {ui.clearAll}
+            </button>
+          </div>
+        )}
+
+        {/* Grid */}
+        {filteredMugs.length === 0 ? (
+          <div style={{ padding: 48, textAlign: "center" }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>☕</div>
+            <h2 style={{ fontSize: 18, color: "#153126", marginBottom: 8 }}>{ui.noResultsTitle}</h2>
+            <p style={{ fontSize: 14, color: "#8a9e96", marginBottom: 16 }}>{ui.noResultsText}</p>
+            <button type="button" onClick={resetFilters} style={{
+              padding: "9px 20px", borderRadius: 10, border: "1px solid #1f6f54",
+              background: "transparent", color: "#1f6f54", fontSize: 13, fontWeight: 600, cursor: "pointer",
+            }}>
+              {ui.clearAll}
+            </button>
+          </div>
+        ) : (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            gap: 14, padding: 16,
+          }}>
+            {filteredMugs.map(mug => {
+              const country = countriesById.get(String(mug.country_id || ""));
+              const state = statesById.get(String(mug.state_id || ""));
+              return (
+                <MugCard
+                  key={mug.id}
+                  mug={mug}
+                  ui={ui}
+                  countryName={getCountryName(country)}
+                  stateName={getStateName(state)}
+                  cityText={getCityText(mug)}
+                  collectionTokens={parseTokenList(mug.collection_keys)}
+                  colorTokens={parseTokenList(mug.color_keys)}
+                  getCollectionLabel={getCollectionLabel}
+                  getColorLabel={getColorLabel}
+                  isAdmin={isAdmin}
+                  onEdit={setEditingMug}
+                />
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Mobile filter sheet ── */}
+      <MobileFilterSheet isOpen={mobileFiltersOpen} onClose={() => setMobileFiltersOpen(false)} title={ui.filters}>
+        <SidebarContent />
+        <div style={{ paddingTop: 16, display: "flex", gap: 10 }}>
+          <button type="button" onClick={resetFilters} style={{
+            flex: 1, padding: "11px", border: "0.5px solid #e2ddd4", borderRadius: 10,
+            background: "transparent", fontSize: 13, color: "#374151", cursor: "pointer",
+          }}>{ui.clearAll}</button>
+          <button type="button" onClick={() => setMobileFiltersOpen(false)} style={{
+            flex: 2, padding: "11px", border: "none", borderRadius: 10,
+            background: "#1f6f54", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
+          }}>
+            Показать {filteredMugs.length} {ui.mugs}
+          </button>
+        </div>
+      </MobileFilterSheet>
+
+      {/* ── Mobile sort sheet ── */}
+      <MobileFilterSheet isOpen={mobileSortOpen} onClose={() => setMobileSortOpen(false)} title={ui.sort}>
+        {["newest", "oldest", "titleAsc"].map(mode => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => { setSortMode(mode); setMobileSortOpen(false); }}
+            style={{
+              display: "block", width: "100%", padding: "14px 16px",
+              border: "none", borderBottom: "0.5px solid #e8e2d9",
+              background: sortMode === mode ? "#e8f5ee" : "transparent",
+              color: sortMode === mode ? "#1a6340" : "#374151",
+              fontSize: 14, fontWeight: sortMode === mode ? 600 : 400,
+              cursor: "pointer", textAlign: "left",
+            }}
+          >
+            {mode === "newest" ? ui.newest : mode === "oldest" ? ui.oldest : ui.titleAsc}
+            {sortMode === mode && <span style={{ float: "right" }}>✓</span>}
+          </button>
+        ))}
+      </MobileFilterSheet>
+
+      {/* Admin inline edit drawer */}
+      {isAdmin && editingMug && (
+        <MugEditDrawer
+          mugId={editingMug.id}
+          language={language}
+          onClose={() => setEditingMug(null)}
+          onChanged={() => { setEditingMug(null); onMugChanged?.(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+export default CatalogPage;

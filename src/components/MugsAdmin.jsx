@@ -18,11 +18,15 @@ import {
   buildCityFilterValue,
 } from "../data/mugMetadata";
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
 const emptyForm = {
   id: null,
+  collection_number: "",
   slug: "",
   title: "",
   country_id: "",
+  state_id: "",
   city_id: "",
   city: "",
   city_key: "",
@@ -35,76 +39,81 @@ const emptyForm = {
   is_published: true,
 };
 
-function normalizeCityName(value) {
-  return String(value || "").trim().toLowerCase();
+function normalizeCityName(v) {
+  return String(v || "").trim().toLowerCase();
 }
 
-function slugify(value) {
-  return value
-    .toLowerCase()
-    .trim()
+function slugify(v) {
+  return String(v || "")
+    .toLowerCase().trim()
     .replace(/[^a-z0-9а-яё\s-]/gi, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
 }
 
-function normalizeSlug(value) {
-  return slugify(String(value || ""));
+function normalizeSlug(v) {
+  return slugify(String(v || ""));
 }
 
-function isUniqueViolation(error) {
-  const message = String(error?.message || "").toLowerCase();
-  const details = String(error?.details || "").toLowerCase();
-  const hint = String(error?.hint || "").toLowerCase();
-
-  return (
-    error?.code === "23505" ||
-    error?.status === 409 ||
-    message.includes("duplicate key") ||
-    details.includes("already exists") ||
-    hint.includes("already exists")
-  );
+function buildCollectionSlug(n) {
+  const num = Number(n);
+  if (!Number.isFinite(num) || num <= 0) return "";
+  return `mug-${String(Math.trunc(num)).padStart(4, "0")}`;
 }
 
-function isSlugConflict(error) {
-  const haystack = [
-    error?.code,
-    error?.message,
-    error?.details,
-    error?.hint,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  return isUniqueViolation(error) && haystack.includes("slug");
+function isUniqueViolation(e) {
+  const msg = String(e?.message || "").toLowerCase();
+  return e?.code === "23505" || e?.status === 409 || msg.includes("duplicate key");
 }
 
-function formatSaveError(error) {
-  if (isSlugConflict(error)) {
-    return "Не удалось сохранить кружку: такой slug уже занят. Попробуйте изменить slug вручную.";
-  }
-
-  if (isUniqueViolation(error)) {
-    return `Не удалось сохранить кружку из-за конфликта данных: ${error?.message || "проверьте уникальные поля и попробуйте снова."}`;
-  }
-
-  return error?.message || "Не удалось сохранить кружку.";
+function isSlugConflict(e) {
+  return isUniqueViolation(e) &&
+    [e?.code, e?.message, e?.details, e?.hint].filter(Boolean).join(" ").toLowerCase().includes("slug");
 }
 
-function buildLegacyCityOption(cityName, countryIso = "", countryId = "") {
-  const trimmedName = String(cityName || "").trim();
-  const normalizedKey = slugify(trimmedName) || "city";
+function isCollectionNumberConflict(e) {
+  return isUniqueViolation(e) &&
+    [e?.code, e?.message, e?.details, e?.hint].filter(Boolean).join(" ").toLowerCase().includes("collection_number");
+}
 
+function formatSaveError(e) {
+  if (isCollectionNumberConflict(e)) return "Такой номер коллекции уже занят. Укажите другой.";
+  if (isSlugConflict(e)) return "Технический slug уже занят.";
+  if (isUniqueViolation(e)) return `Конфликт данных: ${e?.message || "проверьте поля."}`;
+  return e?.message || "Не удалось сохранить кружку.";
+}
+
+function getCountryName(c, lang = "ru") {
+  if (!c) return "—";
+  return lang === "en"
+    ? (c.name_en || c.name_ru || c.iso2_code || "—")
+    : (c.name_ru || c.name_en || c.iso2_code || "—");
+}
+
+function getStateName(s, lang = "ru") {
+  if (!s) return "";
+  return lang === "en"
+    ? (s.name_en || s.name_ru || s.code || "")
+    : (s.name_ru || s.name_en || s.code || "");
+}
+
+function getCityName(city, lang = "ru", fallback = "") {
+  if (!city) return fallback || "";
+  return lang === "en"
+    ? (city.name_en || city.name_ru || fallback || "")
+    : (city.name_ru || city.name_en || fallback || "");
+}
+
+function buildLegacyCityOption(cityName, countryIso = "", countryId = "", stateId = "") {
+  const trimmed = String(cityName || "").trim();
+  const normalizedKey = slugify(trimmed) || "city";
   return {
-    key: `legacy-${countryId || countryIso || "xx"}-${normalizedKey}`,
+    key: `legacy-${countryId || countryIso || "xx"}-${stateId || "na"}-${normalizedKey}`,
     countryIso,
     countryId: String(countryId || ""),
-    label: {
-      ru: trimmedName,
-      en: trimmedName,
-    },
+    stateId: String(stateId || ""),
+    label: { ru: trimmed, en: trimmed },
     legacy: true,
   };
 }
@@ -114,6 +123,7 @@ function mapDbCityToOption(cityRow, countryIso = "") {
     id: cityRow.id,
     key: cityRow.key || `city-${cityRow.id}`,
     countryId: String(cityRow.country_id || ""),
+    stateId: String(cityRow.state_id || ""),
     countryIso,
     label: {
       ru: cityRow.name_ru || cityRow.name_en || cityRow.key || "",
@@ -124,98 +134,137 @@ function mapDbCityToOption(cityRow, countryIso = "") {
   };
 }
 
-function mergeCityOptions(primaryOptions = [], legacyValues = [], countryIso = "", countryId = "") {
-  const seen = new Set(
-    primaryOptions.map((option) => normalizeCityName(option.label?.en || option.label?.ru || option.key))
-  );
+function mergeCityOptions(primary = [], legacyValues = [], countryIso = "", countryId = "", stateId = "") {
+  // Deduplicate primary options themselves first (db may have dupes)
+  const seenPrimary = new Set();
+  const dedupedPrimary = primary.filter(o => {
+    const norm = normalizeCityName(o.label?.en || o.label?.ru || o.key);
+    if (!norm || seenPrimary.has(norm)) return false;
+    seenPrimary.add(norm);
+    return true;
+  });
 
-  const legacyOptions = ensureArray(legacyValues)
-    .map((cityName) => buildLegacyCityOption(cityName, countryIso, countryId))
-    .filter((option) => {
-      const normalizedLabel = normalizeCityName(option.label?.en || option.label?.ru || option.key);
-
-      if (!normalizedLabel || seen.has(normalizedLabel)) {
-        return false;
-      }
-
-      seen.add(normalizedLabel);
+  const seen = new Set(dedupedPrimary.map(o => normalizeCityName(o.label?.en || o.label?.ru || o.key)));
+  const legacyOpts = ensureArray(legacyValues)
+    .map(name => buildLegacyCityOption(name, countryIso, countryId, stateId))
+    .filter(o => {
+      const norm = normalizeCityName(o.label?.en || o.label?.ru || o.key);
+      if (!norm || seen.has(norm)) return false;
+      seen.add(norm);
       return true;
     });
-
-  return [...primaryOptions, ...legacyOptions].sort((a, b) => {
-    return getLocalizedOptionLabel(a, "en").localeCompare(getLocalizedOptionLabel(b, "en"), "en");
-  });
-}
-
-function renderSwatch(option) {
-  if (!option?.swatch) return null;
-
-  return (
-    <span
-      aria-hidden="true"
-      style={{
-        width: "12px",
-        height: "12px",
-        borderRadius: "999px",
-        border: "1px solid rgba(15, 23, 42, 0.12)",
-        background: option.swatch,
-        flexShrink: 0,
-      }}
-    />
+  return [...dedupedPrimary, ...legacyOpts].sort((a, b) =>
+    getLocalizedOptionLabel(a, "en").localeCompare(getLocalizedOptionLabel(b, "en"), "en")
   );
 }
 
-function SelectableChipGroup({
-  options = [],
-  values = [],
-  onToggle,
-  emptyText,
-  showSwatch = false,
-  language = "ru",
-}) {
-  if (!options.length) {
-    return (
-      <div
-        style={{
-          padding: "12px 14px",
-          borderRadius: "12px",
-          border: "1px dashed #d1d5db",
-          color: "#6b7280",
-          fontSize: "14px",
-          background: "#f9fafb",
-        }}
-      >
-        {emptyText}
-      </div>
-    );
-  }
+// ─── Color swatches ───────────────────────────────────────────────────────────
+
+const COLOR_SWATCHES = {
+  green: "#4CAF50", blue: "#2196F3", red: "#F44336", yellow: "#FFC107",
+  orange: "#FF9800", brown: "#795548", black: "#212121", white: "#F5F5F5",
+  gray: "#9E9E9E", grey: "#9E9E9E", purple: "#9C27B0", pink: "#E91E63",
+  gold: "#FFD700", silver: "#C0C0C0", beige: "#D4B896", turquoise: "#00BCD4",
+  multicolor: "#ccc", navy: "#1a237e",
+};
+
+// ─── Drawer ───────────────────────────────────────────────────────────────────
+
+function Drawer({ isOpen, onClose, title, children }) {
+  useEffect(() => {
+    document.body.style.overflow = isOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
 
   return (
-    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-      {options.map((option) => {
-        const active = values.includes(option.key);
+    <>
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed", inset: 0,
+          background: "rgba(0,0,0,0.35)",
+          zIndex: 200, backdropFilter: "blur(2px)",
+        }}
+      />
+      <div style={{
+        position: "fixed", top: 0, right: 0, bottom: 0,
+        width: "min(640px, 100vw)",
+        background: "#fff", zIndex: 201,
+        display: "flex", flexDirection: "column",
+        boxShadow: "-8px 0 40px rgba(0,0,0,0.15)",
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "18px 24px", borderBottom: "1px solid #e8e2d9", flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 17, fontWeight: 700, color: "#153126" }}>{title}</span>
+          <button
+            type="button" onClick={onClose}
+            style={{
+              background: "none", border: "none", fontSize: 22,
+              color: "#9ca3af", cursor: "pointer", padding: "4px 8px", lineHeight: 1,
+            }}
+          >✕</button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px 40px" }}>
+          {children}
+        </div>
+      </div>
+    </>
+  );
+}
 
+// ─── SectionDivider ───────────────────────────────────────────────────────────
+
+function SectionDivider({ title }) {
+  return (
+    <div style={{
+      gridColumn: "1 / -1",
+      display: "flex", alignItems: "center", gap: 10,
+      margin: "12px 0 0",
+    }}>
+      <span style={{
+        fontSize: 11, fontWeight: 800, color: "#1f6f54",
+        textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
+      }}>{title}</span>
+      <div style={{ flex: 1, height: 1, background: "#e2ddd4" }} />
+    </div>
+  );
+}
+
+// ─── ColorChips ───────────────────────────────────────────────────────────────
+
+function ColorChips({ options = [], values = [], onToggle, language = "ru" }) {
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      {options.map(option => {
+        const active = values.includes(option.key);
+        const swatch = COLOR_SWATCHES[option.key];
         return (
           <button
             key={option.key}
             type="button"
             onClick={() => onToggle(option.key)}
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "9px 12px",
-              borderRadius: "999px",
-              border: active ? "1px solid #1f6f54" : "1px solid #d1d5db",
-              background: active ? "#ecf7f1" : "#ffffff",
+              display: "inline-flex", alignItems: "center", gap: 7,
+              padding: "7px 13px", borderRadius: 999,
+              border: active ? "2px solid #1f6f54" : "1.5px solid #d1d5db",
+              background: active ? "#ecf7f1" : "#fff",
               color: active ? "#15563f" : "#374151",
-              cursor: "pointer",
-              fontSize: "13px",
-              fontWeight: 600,
+              cursor: "pointer", fontSize: 13, fontWeight: 600,
+              transition: "all 0.15s",
             }}
           >
-            {showSwatch ? renderSwatch(option) : null}
-            <span>{getLocalizedOptionLabel(option, language)}</span>
+            {swatch && (
+              <span style={{
+                width: 13, height: 13, borderRadius: "50%", flexShrink: 0,
+                background: swatch,
+                border: option.key === "white" ? "1px solid #ccc" : "none",
+              }} />
+            )}
+            {getLocalizedOptionLabel(option, language)}
           </button>
         );
       })}
@@ -223,17 +272,26 @@ function SelectableChipGroup({
   );
 }
 
-function MugsAdmin({ onChanged }) {
+// ─── MugsAdmin ────────────────────────────────────────────────────────────────
+
+function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbeddedClose = null }) {
   const [mugs, setMugs] = useState([]);
   const [countries, setCountries] = useState([]);
+  const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
   const [citiesError, setCitiesError] = useState("");
+  const [statesError, setStatesError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
   const [search, setSearch] = useState("");
+  const [numberFilter, setNumberFilter] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
   const [cityFilter, setCityFilter] = useState("");
-  const [sortBy, setSortBy] = useState("created-desc");
+  const [sortBy, setSortBy] = useState("collection-desc");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
   const [form, setForm] = useState(emptyForm);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [initialForm, setInitialForm] = useState(emptyForm);
@@ -245,259 +303,253 @@ function MugsAdmin({ onChanged }) {
   const [cityCreateError, setCityCreateError] = useState("");
   const [localCityOptions, setLocalCityOptions] = useState([]);
 
+  const locale = language === "en" ? "en" : "ru";
+
+  // ── Load ──────────────────────────────────────────────────────────────────
+
   async function loadAll() {
     setLoading(true);
     setError("");
-
-    const [countriesResult, mugsResult, citiesResult] = await Promise.all([
-      supabase
-        .from("countries")
+    const [countriesRes, mugsRes, citiesRes, statesRes] = await Promise.all([
+      supabase.from("countries")
         .select("id, iso2_code, name_en, name_ru")
         .order("name_en", { ascending: true }),
-
-      supabase
-        .from("mugs")
-        .select(`
-          id,
-          country_id,
-          city_id,
-          slug,
-          title,
-          city,
-          city_key,
-          mug_type,
-          received_at,
-          brought_by,
-          brought_by_person_ids,
-          brought_by_person_id,
-          color_keys,
-          collection_keys,
-          note,
-          is_published,
-          created_at,
-          updated_at,
-          country:countries (
-            id,
-            iso2_code,
-            name_en,
-            name_ru
-          )
-        `)
-        .order("created_at", { ascending: false }),
-
-      supabase
-        .from("cities")
-        .select("id, key, country_id, name_en, name_ru, latitude, longitude, is_active")
+      supabase.from("mugs").select(`
+        id, collection_number, country_id, state_id, city_id, slug, title,
+        city, city_key, mug_type, received_at, brought_by,
+        brought_by_person_ids, brought_by_person_id,
+        color_keys, collection_keys, note, is_published,
+        created_at, updated_at,
+        country:countries (id, iso2_code, name_en, name_ru)
+      `).order("collection_number", { ascending: false, nullsFirst: false }),
+      supabase.from("cities")
+        .select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude, is_active")
+        .eq("is_active", true)
+        .order("name_en", { ascending: true }),
+      supabase.from("states")
+        .select("id, country_id, code, name_en, name_ru, is_active")
         .eq("is_active", true)
         .order("name_en", { ascending: true }),
     ]);
 
-    if (countriesResult.error) {
-      setError(countriesResult.error.message);
-      setLoading(false);
-      return;
-    }
+    if (countriesRes.error) { setError(countriesRes.error.message); setLoading(false); return; }
+    if (mugsRes.error) { setError(mugsRes.error.message); setLoading(false); return; }
 
-    if (mugsResult.error) {
-      setError(mugsResult.error.message);
-      setLoading(false);
-      return;
-    }
-
-    setCountries(countriesResult.data ?? []);
-    setMugs(mugsResult.data ?? []);
-    setCities(citiesResult.error ? [] : citiesResult.data ?? []);
-    setCitiesError(
-      citiesResult.error
-        ? "Не удалось загрузить справочник городов из базы. Проверьте, что таблица cities создана и заполнена."
-        : ""
-    );
+    setCountries(countriesRes.data ?? []);
+    setMugs(mugsRes.data ?? []);
+    setCities(citiesRes.error ? [] : citiesRes.data ?? []);
+    setStates(statesRes.error ? [] : statesRes.data ?? []);
+    setCitiesError(citiesRes.error ? "Не удалось загрузить города." : "");
+    setStatesError(statesRes.error ? "Не удалось загрузить штаты/регионы." : "");
     setLoading(false);
   }
 
+  useEffect(() => { loadAll(); }, []);
+
+  // Open edit form when initialEditMugId provided (from CatalogPage)
   useEffect(() => {
-    loadAll();
-  }, []);
+    if (!initialEditMugId || !mugs.length || !openEditForm) return;
+    const mug = mugs.find(m => String(m.id) === String(initialEditMugId));
+    if (mug) openEditForm(mug);
+  }, [initialEditMugId, mugs]);
+
+  // ── Maps ──────────────────────────────────────────────────────────────────
 
   const countriesById = useMemo(() => {
-    const map = new Map();
-
-    countries.forEach((country) => {
-      map.set(String(country.id), country);
-    });
-
-    return map;
+    const m = new Map();
+    countries.forEach(c => m.set(String(c.id), c));
+    return m;
   }, [countries]);
+
+  const statesById = useMemo(() => {
+    const m = new Map();
+    states.forEach(s => m.set(String(s.id), s));
+    return m;
+  }, [states]);
 
   const citiesById = useMemo(() => {
-    const map = new Map();
-
-    cities.forEach((city) => {
-      map.set(String(city.id), city);
-    });
-
-    return map;
+    const m = new Map();
+    cities.forEach(c => m.set(String(c.id), c));
+    return m;
   }, [cities]);
 
+  const nextCollectionNumber = useMemo(() => {
+    const max = mugs.reduce((m, mug) => {
+      const v = Number(mug.collection_number);
+      return Number.isFinite(v) && v > m ? v : m;
+    }, 0);
+    return max + 1;
+  }, [mugs]);
+
   const countryDisplayOptions = useMemo(() => {
-    return countries.map((country) => ({
-      value: String(country.id),
-      label: `${country.name_en}${country.name_ru ? ` / ${country.name_ru}` : ""}`,
-    }));
-  }, [countries]);
+    return countries
+      .map(c => ({ value: String(c.id), label: getCountryName(c, language) }))
+      .sort((a, b) => a.label.localeCompare(b.label, locale));
+  }, [countries, language, locale]);
 
-  const resolveCountryIso = useCallback(
-    (countryId) => {
-      const country = countriesById.get(String(countryId));
-      return normalizeIso2(country?.iso2_code || "");
-    },
-    [countriesById]
-  );
+  const resolveCountryIso = useCallback((countryId) => {
+    return normalizeIso2(countriesById.get(String(countryId))?.iso2_code || "");
+  }, [countriesById]);
 
+  const stateOptionsByCountryId = useMemo(() => {
+    const map = new Map();
+    states.forEach(state => {
+      const cid = String(state.country_id || "");
+      if (!cid) return;
+      const cur = map.get(cid) ?? [];
+      cur.push({
+        id: state.id,
+        value: String(state.id),
+        code: state.code || "",
+        name_en: state.name_en || "",
+        name_ru: state.name_ru || "",
+        label: getStateName(state, language),
+      });
+      map.set(cid, cur);
+    });
+    map.forEach((opts, key) =>
+      map.set(key, opts.sort((a, b) => a.label.localeCompare(b.label, locale)))
+    );
+    return map;
+  }, [states, language, locale]);
+
+  const currentStateOptions = useMemo(() => {
+    if (!form.country_id) return [];
+    return stateOptionsByCountryId.get(String(form.country_id)) ?? [];
+  }, [form.country_id, stateOptionsByCountryId]);
+
+  const currentCountryHasStates = currentStateOptions.length > 0;
   const currentCountryIso = resolveCountryIso(form.country_id);
 
-  const cityOptionsByCountryId = useMemo(() => {
-    const map = new Map();
-
-    cities.forEach((city) => {
-      const countryId = String(city.country_id || "");
-      if (!countryId) return;
-
-      const countryIso = resolveCountryIso(countryId);
-      const option = mapDbCityToOption(city, countryIso);
-      const existingOptions = map.get(countryId) ?? [];
-      existingOptions.push(option);
-      map.set(countryId, existingOptions);
-    });
-
-    map.forEach((options, countryId) => {
-      map.set(
-        countryId,
-        options.sort((a, b) => {
-          return getLocalizedOptionLabel(a, "en").localeCompare(
-            getLocalizedOptionLabel(b, "en"),
-            "en"
-          );
-        })
-      );
-    });
-
-    return map;
-  }, [cities, resolveCountryIso]);
-
-  const cityOptionsByCountryIso = useMemo(() => {
-    const map = new Map();
-
-    cities.forEach((city) => {
-      const countryIso = resolveCountryIso(city.country_id);
-      if (!countryIso) return;
-
-      const option = mapDbCityToOption(city, countryIso);
-      const existingOptions = map.get(countryIso) ?? [];
-      existingOptions.push(option);
-      map.set(countryIso, existingOptions);
-    });
-
-    map.forEach((options, countryIso) => {
-      const uniqueOptions = options.filter((option, index, array) => {
-        return array.findIndex((candidate) => candidate.key === option.key) === index;
-      });
-
-      map.set(
-        countryIso,
-        uniqueOptions.sort((a, b) => {
-          return getLocalizedOptionLabel(a, "en").localeCompare(
-            getLocalizedOptionLabel(b, "en"),
-            "en"
-          );
-        })
-      );
-    });
-
-    return map;
-  }, [cities, resolveCountryIso]);
-
   const currentCountryLegacyCities = useMemo(() => {
+    const seen = new Set();
     return mugs
-      .filter((mug) => resolveCountryIso(mug.country_id) === currentCountryIso)
-      .map((mug) => mug.city)
-      .filter(Boolean);
-  }, [mugs, currentCountryIso, resolveCountryIso]);
+      .filter(m => String(m.country_id) === String(form.country_id || ""))
+      .filter(m => !form.state_id || String(m.state_id || "") === String(form.state_id || ""))
+      .map(m => {
+        // Prefer localized name from cities table
+        if (m.city_id) {
+          const cityRecord = citiesById.get(String(m.city_id));
+          if (cityRecord) {
+            return language === "en"
+              ? (cityRecord.name_en || cityRecord.name_ru || m.city || "")
+              : (cityRecord.name_ru || cityRecord.name_en || m.city || "");
+          }
+        }
+        return m.city || "";
+      })
+      .filter(Boolean)
+      .filter(city => {
+        const norm = normalizeCityName(city);
+        if (seen.has(norm)) return false;
+        seen.add(norm);
+        return true;
+      });
+  }, [mugs, form.country_id, form.state_id, citiesById, language]);
 
-  const getAvailableCityOptions = useCallback(
-    (countryId, legacyValues = []) => {
-      const normalizedCountryId = String(countryId || "");
-      const countryIso = resolveCountryIso(normalizedCountryId);
-      const dbOptions =
-        cityOptionsByCountryId.get(normalizedCountryId) ??
-        cityOptionsByCountryIso.get(countryIso) ??
-        [];
+  const getAvailableCityOptions = useCallback((countryId, stateId = "", legacyValues = []) => {
+    const cid = String(countryId || "");
+    const sid = String(stateId || "");
+    const iso = resolveCountryIso(cid);
 
-      const localOptions = localCityOptions.filter(
-        (city) => city.countryId === normalizedCountryId
-      );
+    // All cities for this country (and state if selected)
+    const dbOpts = cities
+      .filter(c => String(c.country_id || "") === cid)
+      .filter(c => sid ? String(c.state_id || "") === sid : true)
+      .map(c => mapDbCityToOption(c, iso));
 
-      return mergeCityOptions(
-        [...dbOptions, ...localOptions],
-        legacyValues,
-        countryIso,
-        normalizedCountryId
-      );
-    },
-    [cityOptionsByCountryId, cityOptionsByCountryIso, localCityOptions, resolveCountryIso]
-  );
+    const localOpts = localCityOptions.filter(c =>
+      c.countryId === cid && (sid ? String(c.stateId || "") === sid : true)
+    );
+
+    // Count how many mugs each city has
+    const mugCountByCityId = new Map();
+    mugs.forEach(m => {
+      if (m.country_id && String(m.country_id) === cid) {
+        const key = String(m.city_id || "");
+        if (key) mugCountByCityId.set(key, (mugCountByCityId.get(key) || 0) + 1);
+      }
+    });
+
+    const allOpts = mergeCityOptions([...dbOpts, ...localOpts], legacyValues, iso, cid, sid);
+
+    // Sort: top 5 by mug count first (pinned), rest alphabetically
+    const withCount = allOpts.map(o => ({
+      ...o,
+      _mugCount: mugCountByCityId.get(String(o.id || "")) || 0,
+    }));
+
+    const popular = withCount
+      .filter(o => o._mugCount > 0)
+      .sort((a, b) => b._mugCount - a._mugCount)
+      .slice(0, 5);
+
+    const popularIds = new Set(popular.map(o => o.key));
+
+    const rest = withCount
+      .filter(o => !popularIds.has(o.key))
+      .sort((a, b) => getLocalizedOptionLabel(a, language).localeCompare(getLocalizedOptionLabel(b, language)));
+
+    return [...popular, ...rest];
+  }, [cities, localCityOptions, resolveCountryIso, mugs, language]);
 
   const currentCityOptions = useMemo(() => {
     if (!form.country_id) return [];
-    return getAvailableCityOptions(form.country_id, currentCountryLegacyCities);
-  }, [form.country_id, currentCountryLegacyCities, getAvailableCityOptions]);
+    if (currentCountryHasStates && !form.state_id) return [];
+    return getAvailableCityOptions(form.country_id, form.state_id, currentCountryLegacyCities);
+  }, [form.country_id, form.state_id, currentCountryHasStates, currentCountryLegacyCities, getAvailableCityOptions]);
 
-  const hasDbCitiesForCurrentCountry = useMemo(() => {
+  const hasDbCities = useMemo(() => {
     if (!form.country_id) return false;
-    const countryId = String(form.country_id);
-    const countryIso = resolveCountryIso(countryId);
+    if (currentCountryHasStates && !form.state_id) return false;
+    return currentCityOptions.length > 0;
+  }, [form.country_id, form.state_id, currentCountryHasStates, currentCityOptions]);
 
-    return (
-      (cityOptionsByCountryId.get(countryId) ?? []).length > 0 ||
-      (cityOptionsByCountryIso.get(countryIso) ?? []).length > 0
-    );
-  }, [cityOptionsByCountryId, cityOptionsByCountryIso, form.country_id, resolveCountryIso]);
+  // ── Form ──────────────────────────────────────────────────────────────────
 
   function createFormState(mug = emptyForm) {
     const countryId = mug.country_id ? String(mug.country_id) : "";
-    const availableCities = getAvailableCityOptions(
-      countryId,
+    const stateId = mug.state_id ? String(mug.state_id) : "";
+    const legacyCities = [...new Set(
       mugs
-        .filter((item) => String(item.country_id) === countryId)
-        .map((item) => item.city)
+        .filter(m => String(m.country_id) === countryId)
+        .filter(m => !stateId || String(m.state_id || "") === stateId)
+        .map(m => {
+          if (m.city_id) {
+            const cityRecord = citiesById.get(String(m.city_id));
+            if (cityRecord) {
+              return language === "en"
+                ? (cityRecord.name_en || cityRecord.name_ru || m.city || "")
+                : (cityRecord.name_ru || cityRecord.name_en || m.city || "");
+            }
+          }
+          return m.city || "";
+        })
         .filter(Boolean)
-    );
-
-    const selectedCityById = mug.city_id ? citiesById.get(String(mug.city_id)) : null;
-    const cityKey =
-      selectedCityById?.key ||
-      mug.city_key ||
-      availableCities.find((option) => option.label.en === mug.city || option.label.ru === mug.city)?.key ||
-      "";
-
-    const cityLabel = selectedCityById
-      ? selectedCityById.name_en || selectedCityById.name_ru || mug.city || ""
-      : getCityDisplayName(cityKey, mug.city || "", "en") || mug.city || "";
+        .map(c => c.trim())
+    )].filter(Boolean);
+    const availableCities = getAvailableCityOptions(countryId, stateId, legacyCities);
+    const selectedCity = mug.city_id ? citiesById.get(String(mug.city_id)) : null;
+    const cityKey = selectedCity?.key || mug.city_key ||
+      availableCities.find(o => o.label.en === mug.city || o.label.ru === mug.city)?.key || "";
+    const cityLabel = selectedCity
+      ? getCityName(selectedCity, language, mug.city || "")
+      : getCityDisplayName(cityKey, mug.city || "", language) || mug.city || "";
 
     return {
       id: mug.id || null,
+      collection_number: mug.collection_number == null ? "" : String(mug.collection_number),
       slug: mug.slug || "",
       title: mug.title || "",
       country_id: countryId,
+      state_id: stateId,
       city_id: mug.city_id ? String(mug.city_id) : "",
       city: cityLabel,
       city_key: cityKey,
       type_values: getTypeValues(mug.collection_keys, mug.mug_type),
       received_at: mug.received_at || "",
       brought_by: mug.brought_by || "",
-      brought_by_person_ids: ensureArray(
-        mug.brought_by_person_ids || mug.brought_by_person_id
-      ),
+      brought_by_person_ids: ensureArray(mug.brought_by_person_ids || mug.brought_by_person_id),
       color_keys: ensureArray(mug.color_keys),
       note: mug.note || "",
       is_published: mug.is_published == null ? true : !!mug.is_published,
@@ -505,327 +557,234 @@ function MugsAdmin({ onChanged }) {
   }
 
   function openCreateForm() {
-    setForm(emptyForm);
-    setInitialForm(emptyForm);
-    setPendingImageFiles([]);
-    setIsFormOpen(true);
-    setIsDiscardModalOpen(false);
-    setError("");
+    const f = {
+      ...emptyForm,
+      collection_number: String(nextCollectionNumber),
+      slug: buildCollectionSlug(nextCollectionNumber),
+    };
+    setForm(f); setInitialForm(f); setPendingImageFiles([]); setIsFormOpen(true); setError("");
   }
 
   function openEditForm(mug) {
-    const initialFormData = createFormState(mug);
-    setForm(initialFormData);
-    setInitialForm(initialFormData);
-    setPendingImageFiles([]);
-    setIsFormOpen(true);
-    setIsDiscardModalOpen(false);
-    setError("");
+    const f = createFormState(mug);
+    setForm(f); setInitialForm(f); setPendingImageFiles([]); setIsFormOpen(true); setError("");
   }
 
   function hasFormChanged() {
-    return (
-      JSON.stringify(form) !== JSON.stringify(initialForm) ||
-      pendingImageFiles.length > 0
-    );
+    return JSON.stringify(form) !== JSON.stringify(initialForm) || pendingImageFiles.length > 0;
   }
 
   function closeFormImmediately() {
-    setForm(emptyForm);
-    setInitialForm(emptyForm);
-    setPendingImageFiles([]);
-    setIsFormOpen(false);
-    setIsDiscardModalOpen(false);
-    setError("");
+    setForm(emptyForm); setInitialForm(emptyForm); setPendingImageFiles([]);
+    setIsFormOpen(false); setIsDiscardModalOpen(false); setError("");
+    setIsCityCreatorOpen(false); setNewCityName(""); setCityCreateError("");
+    if (onEmbeddedClose) onEmbeddedClose();
   }
 
   function requestCloseForm() {
-    if (!hasFormChanged()) {
-      closeFormImmediately();
-      return;
-    }
-
+    if (!hasFormChanged()) { closeFormImmediately(); return; }
     setIsDiscardModalOpen(true);
   }
 
   function updateForm(field, value) {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  function updateCollectionNumber(value) {
+    const v = String(value || "").replace(/[^\d]/g, "");
+    setForm(prev => ({ ...prev, collection_number: v, slug: buildCollectionSlug(v) || prev.slug }));
   }
 
   function updateCountry(value) {
-    const nextCityOptions = getAvailableCityOptions(
-      value,
-      mugs
-        .filter((mug) => String(mug.country_id) === String(value))
-        .map((mug) => mug.city)
-        .filter(Boolean)
-    );
+    const nextStateOpts = stateOptionsByCountryId.get(String(value)) ?? [];
+    const hasStates = nextStateOpts.length > 0;
+    const nextStateId = hasStates && nextStateOpts.some(o => o.value === String(form.state_id || ""))
+      ? String(form.state_id || "") : "";
+    setForm(prev => ({ ...prev, country_id: value, state_id: nextStateId, city_id: "", city_key: "", city: "" }));
+  }
 
-    setForm((prev) => {
-      const hasCurrentCity = nextCityOptions.some((option) => option.key === prev.city_key);
-
-      return {
-        ...prev,
-        country_id: value,
-        city_id: hasCurrentCity ? prev.city_id : "",
-        city_key: hasCurrentCity ? prev.city_key : "",
-        city: hasCurrentCity ? prev.city : "",
-      };
-    });
+  function updateState(value) {
+    setForm(prev => ({ ...prev, state_id: value, city_id: "", city_key: "", city: "" }));
   }
 
   function updateCity(selectedValue) {
-    const selectedCity = currentCityOptions.find((option) => option.key === selectedValue || option.id === selectedValue);
-
-    setForm((prev) => ({
+    const selectedCity = currentCityOptions.find(
+      o => o.key === selectedValue || String(o.id) === String(selectedValue)
+    );
+    setForm(prev => ({
       ...prev,
+      // FIX: city_id — UUID, не оборачивать в Number()
       city_id: selectedCity?.id ? String(selectedCity.id) : "",
       city_key: selectedCity?.key || selectedValue || "",
-      city: selectedCity ? selectedCity.label.en || selectedCity.label.ru || "" : "",
+      city: selectedCity
+        ? getLocalizedOptionLabel(selectedCity, language) || selectedCity.label.en || selectedCity.label.ru || ""
+        : "",
     }));
   }
 
+  function toggleMultiValue(field, key) {
+    setForm(prev => {
+      const cur = ensureArray(prev[field]);
+      return { ...prev, [field]: cur.includes(key) ? cur.filter(v => v !== key) : [...cur, key] };
+    });
+  }
+
+  // ── City creation ─────────────────────────────────────────────────────────
+
   function closeCityCreator() {
-    setIsCityCreatorOpen(false);
-    setNewCityName("");
-    setCityCreateError("");
+    setIsCityCreatorOpen(false); setNewCityName(""); setCityCreateError("");
   }
 
   async function createCity() {
-    if (!form.country_id) {
-      setCityCreateError("Выберите страну перед добавлением города.");
-      return;
-    }
+    if (!form.country_id) { setCityCreateError("Выберите страну."); return; }
+    if (currentCountryHasStates && !form.state_id) { setCityCreateError("Выберите штат."); return; }
+    if (!newCityName.trim()) { setCityCreateError("Введите название города."); return; }
 
-    if (!newCityName.trim()) {
-      setCityCreateError("Введите название города.");
-      return;
-    }
+    setIsCreatingCity(true); setCityCreateError("");
 
-    setIsCreatingCity(true);
-    setCityCreateError("");
-
-    const cityKey = slugify(newCityName.trim());
+    const citySlug = slugify(newCityName.trim());
+    const cityKey = [currentCountryIso || form.country_id || "xx", form.state_id || "na", citySlug || "city"]
+      .filter(Boolean).join("-");
     const payload = {
       key: cityKey,
       country_id: Number(form.country_id),
+      state_id: form.state_id ? Number(form.state_id) : null,
       name_en: newCityName.trim(),
       name_ru: newCityName.trim(),
-      latitude: null,
-      longitude: null,
-      is_active: true,
+      latitude: null, longitude: null, is_active: true,
     };
 
     const { data: cityData, error: cityError } = await supabase
-      .from("cities")
-      .insert(payload)
-      .select("id, key, country_id, name_en, name_ru")
-      .single();
-
-    const unauthorizedWrite = cityError && (
-      cityError.status === 401 ||
-      cityError.status === 403 ||
-      String(cityError.message || "").toLowerCase().includes("unauthorized") ||
-      String(cityError.message || "").toLowerCase().includes("permission")
-    );
-
-    if (cityError && unauthorizedWrite) {
-      const fallbackOption = {
-        id: null,
-        key: cityKey,
-        countryId: String(form.country_id),
-        label: {
-          ru: newCityName.trim(),
-          en: newCityName.trim(),
-        },
-      };
-
-      setLocalCityOptions((prev) => {
-        const existing = prev.find((item) => item.key === cityKey && item.countryId === String(form.country_id));
-        if (existing) return prev;
-        return [...prev, fallbackOption];
-      });
-
-      setError(
-        "Не удалось создать город на сервере. Город сохранён локально для текущей кружки, но для полного добавления в базу настройте права Supabase или добавьте политику RLS."
-      );
-      setForm((prev) => ({
-        ...prev,
-        city_id: "",
-        city_key: cityKey,
-        city: newCityName.trim(),
-      }));
-      closeCityCreator();
-      setIsCreatingCity(false);
-      return;
-    }
+      .from("cities").insert(payload)
+      .select("id, key, country_id, state_id, name_en, name_ru").single();
 
     if (cityError) {
-      if (cityError.code === "23505" || String(cityError.message || "").toLowerCase().includes("duplicate")) {
-        const { data: existingCity, error: lookupError } = await supabase
-          .from("cities")
-          .select("id, key, country_id, name_en, name_ru")
-          .eq("key", cityKey)
-          .single();
-
-        if (lookupError || !existingCity) {
-          setCityCreateError(lookupError?.message || "Не удалось найти дублирующий город.");
-          setIsCreatingCity(false);
-          return;
-        }
-
-        const cityInfo = existingCity;
-        await loadAll();
-        setForm((prev) => ({
-          ...prev,
-          city_id: String(cityInfo.id),
-          city_key: cityInfo.key,
-          city: cityInfo.name_en || cityInfo.name_ru || newCityName.trim(),
-        }));
-        closeCityCreator();
-        setIsCreatingCity(false);
-        return;
+      const isUnauth = cityError.status === 401 || cityError.status === 403 ||
+        String(cityError.message || "").toLowerCase().includes("unauthorized");
+      if (isUnauth) {
+        const fallback = {
+          id: null, key: cityKey,
+          countryId: String(form.country_id),
+          stateId: String(form.state_id || ""),
+          label: { ru: newCityName.trim(), en: newCityName.trim() },
+        };
+        setLocalCityOptions(prev => prev.find(i => i.key === cityKey) ? prev : [...prev, fallback]);
+        setForm(prev => ({ ...prev, city_id: "", city_key: cityKey, city: newCityName.trim() }));
+        closeCityCreator(); setIsCreatingCity(false); return;
       }
-
+      if (cityError.code === "23505") {
+        let q = supabase.from("cities")
+          .select("id, key, country_id, state_id, name_en, name_ru")
+          .eq("key", cityKey).eq("country_id", Number(form.country_id));
+        q = form.state_id ? q.eq("state_id", Number(form.state_id)) : q.is("state_id", null);
+        const { data: existing } = await q.single();
+        if (existing) {
+          await loadAll();
+          setForm(prev => ({
+            ...prev,
+            city_id: String(existing.id),
+            city_key: existing.key,
+            city: getCityName(existing, language, newCityName.trim()),
+          }));
+          closeCityCreator(); setIsCreatingCity(false); return;
+        }
+      }
       setCityCreateError(cityError.message || "Не удалось добавить город.");
-      setIsCreatingCity(false);
-      return;
+      setIsCreatingCity(false); return;
     }
 
     await loadAll();
-    setForm((prev) => ({
+    setForm(prev => ({
       ...prev,
       city_id: cityData.id ? String(cityData.id) : "",
       city_key: cityData.key || cityKey,
-      city: cityData.name_en || cityData.name_ru || newCityName.trim(),
+      city: getCityName(cityData, language, newCityName.trim()),
     }));
-    closeCityCreator();
-    setIsCreatingCity(false);
+    closeCityCreator(); setIsCreatingCity(false);
   }
 
-  function toggleMultiValue(field, optionKey) {
-    setForm((prev) => {
-      const currentValues = ensureArray(prev[field]);
-      const nextValues = currentValues.includes(optionKey)
-        ? currentValues.filter((value) => value !== optionKey)
-        : [...currentValues, optionKey];
+  // ── Save ──────────────────────────────────────────────────────────────────
 
-      return {
-        ...prev,
-        [field]: nextValues,
-      };
-    });
-  }
-
-  function buildAvailableSlug(baseSlug, excludedMugId = null, reservedSlugs = new Set()) {
-    const normalizedBase = normalizeSlug(baseSlug) || `mug-${Date.now()}`;
-    const takenSlugs = new Set(reservedSlugs);
-
-    mugs.forEach((mug) => {
-      if (excludedMugId != null && String(mug.id) === String(excludedMugId)) {
-        return;
-      }
-
-      const mugSlug = normalizeSlug(mug.slug);
-      if (mugSlug) {
-        takenSlugs.add(mugSlug);
+  function buildAvailableSlug(base, excludeId = null, reserved = new Set()) {
+    const norm = normalizeSlug(base) || `mug-${Date.now()}`;
+    const taken = new Set(reserved);
+    mugs.forEach(m => {
+      if (String(m.id) !== String(excludeId || "")) {
+        const s = normalizeSlug(m.slug);
+        if (s) taken.add(s);
       }
     });
-
-    if (!takenSlugs.has(normalizedBase)) {
-      return normalizedBase;
-    }
-
-    let suffix = 2;
-    let candidate = `${normalizedBase}-${suffix}`;
-
-    while (takenSlugs.has(candidate)) {
-      suffix += 1;
-      candidate = `${normalizedBase}-${suffix}`;
-    }
-
+    if (!taken.has(norm)) return norm;
+    let suffix = 2, candidate = `${norm}-${suffix}`;
+    while (taken.has(candidate)) { suffix++; candidate = `${norm}-${suffix}`; }
     return candidate;
   }
 
   async function persistMug(payload, nowIso) {
-    const reservedSlugs = new Set();
-    const baseSlug = payload.slug;
+    const reserved = new Set();
     let lastError = null;
-
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      const nextSlug = buildAvailableSlug(baseSlug, form.id, reservedSlugs);
-      const nextPayload = { ...payload, slug: nextSlug };
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const slug = buildAvailableSlug(payload.slug, form.id, reserved);
+      const p = { ...payload, slug };
       const result = form.id
-        ? await supabase.from("mugs").update(nextPayload).eq("id", form.id)
-        : await supabase
-            .from("mugs")
-            .insert({ ...nextPayload, created_at: nowIso })
-            .select("id, slug")
-            .single();
-
-      if (!result.error) {
-        return {
-          result,
-          savedPayload: nextPayload,
-        };
-      }
-
+        ? await supabase.from("mugs").update(p).eq("id", form.id)
+        : await supabase.from("mugs").insert({ ...p, created_at: nowIso }).select("id, slug").single();
+      if (!result.error) return { result, savedPayload: p };
       lastError = result.error;
-
-      if (!isSlugConflict(result.error)) {
-        throw result.error;
-      }
-
-      reservedSlugs.add(nextSlug);
+      if (!isSlugConflict(result.error)) throw result.error;
+      reserved.add(slug);
     }
-
-    throw (
-      lastError ||
-      new Error("Не удалось подобрать свободный slug. Попробуйте указать его вручную.")
-    );
+    throw lastError || new Error("Не удалось подобрать свободный slug.");
   }
 
   async function saveForm(event) {
     event.preventDefault();
 
-    if (!form.title.trim()) {
-      setError("Укажите название кружки.");
-      return;
+    if (!form.title.trim()) { setError("Укажите название кружки."); return; }
+
+    const collectionNumber = Number(form.collection_number);
+    if (!Number.isFinite(collectionNumber) || collectionNumber <= 0 || !Number.isInteger(collectionNumber)) {
+      setError("Укажите корректный № коллекции — целое положительное число."); return;
     }
 
-    if (!form.country_id) {
-      setError("Выберите страну.");
-      return;
-    }
+    const numberTaken = mugs.some(m =>
+      String(m.id) !== String(form.id || "") && Number(m.collection_number) === collectionNumber
+    );
+    if (numberTaken) { setError(`Номер ${collectionNumber} уже занят другой кружкой.`); return; }
+    if (!form.country_id) { setError("Выберите страну."); return; }
 
-    if (!form.city_key) {
-      setError("Выберите город из готового списка.");
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-
-    const selectedCityOption =
-      currentCityOptions.find(
-        (option) => option.key === form.city_key || String(option.id) === String(form.city_id)
-      ) || null;
+    const selectedStateOption = currentStateOptions.find(o => o.value === String(form.state_id || ""));
+    const selectedCityOption = currentCityOptions.find(
+      o => o.key === form.city_key || String(o.id) === String(form.city_id)
+    ) || null;
+    // Use localized city label — prefer ru for ru language, en for en
     const cityLabel = selectedCityOption
-      ? selectedCityOption.label.en || selectedCityOption.label.ru || ""
+      ? (language === "en"
+          ? selectedCityOption.label.en || selectedCityOption.label.ru || ""
+          : selectedCityOption.label.ru || selectedCityOption.label.en || "")
       : form.city.trim();
+
+    setSaving(true); setError("");
     const nowIso = new Date().toISOString();
-    const baseSlug =
-      normalizeSlug(form.slug) ||
-      slugify([form.title, cityLabel].filter(Boolean).join(" ")) ||
+    const collectionSlug = buildCollectionSlug(collectionNumber);
+    const baseSlug = normalizeSlug(collectionSlug) || normalizeSlug(form.slug) ||
+      slugify([form.title, selectedStateOption?.name_en || "", cityLabel].filter(Boolean).join(" ")) ||
       `mug-${Date.now()}`;
+
     const typeLabels = getTypeLabels(form.type_values, "ru");
 
     const payload = {
+      collection_number: collectionNumber,
       slug: baseSlug,
       title: form.title.trim(),
       country_id: Number(form.country_id),
+      // FIX: fill country_iso2 and state_code
+      country_iso2: resolveCountryIso(form.country_id) || null,
+      state_id: selectedStateOption?.id ? Number(selectedStateOption.id) : null,
+      state_code: selectedStateOption?.code || null,
+      // FIX: city_id is UUID — store as string, NOT Number()
       city_id: selectedCityOption?.id ? String(selectedCityOption.id) : null,
-      city_key: form.city_key || null,
+      city_key: selectedCityOption?.key || null,
       city: cityLabel || null,
       mug_type: typeLabels.join(", ") || null,
       received_at: form.received_at || null,
@@ -839,564 +798,308 @@ function MugsAdmin({ onChanged }) {
       updated_at: nowIso,
     };
 
+    // Auto-fill brought_by from people records
     if (!payload.brought_by && payload.brought_by_person_ids.length > 0) {
-      const { data: peopleData, error: peopleError } = await supabase
-        .from("people")
-        .select("first_name, last_name")
+      const { data: peopleData } = await supabase
+        .from("people").select("first_name, last_name")
         .in("id", payload.brought_by_person_ids);
-
-      if (!peopleError && Array.isArray(peopleData) && peopleData.length > 0) {
-        payload.brought_by = peopleData
-          .map((person) => `${person.first_name} ${person.last_name}`)
-          .join(", ");
+      if (Array.isArray(peopleData) && peopleData.length > 0) {
+        payload.brought_by = peopleData.map(p => `${p.first_name} ${p.last_name}`).join(", ");
       }
     }
 
-    let result;
-    let savedMugId = form.id || "";
-    let savedPayload = payload;
-
+    let result, savedMugId = form.id || "", savedPayload = payload;
     try {
       const persisted = await persistMug(payload, nowIso);
-      result = persisted.result;
-      savedPayload = persisted.savedPayload;
+      result = persisted.result; savedPayload = persisted.savedPayload;
     } catch (saveError) {
-      setError(formatSaveError(saveError));
-      setSaving(false);
-      return;
+      setError(formatSaveError(saveError)); setSaving(false); return;
     }
 
-    if (result.error) {
-      setError(formatSaveError(result.error));
-      setSaving(false);
-      return;
-    }
-
-    if (!form.id) {
-      savedMugId = result.data?.id || "";
-    }
+    if (result.error) { setError(formatSaveError(result.error)); setSaving(false); return; }
+    if (!form.id) savedMugId = result.data?.id || "";
 
     if (savedMugId && pendingImageFiles.length > 0) {
       try {
         await uploadImagesForMug(savedMugId, pendingImageFiles, 0);
         setPendingImageFiles([]);
       } catch (uploadError) {
-        await loadAll();
-        await onChanged?.();
-
+        await loadAll(); await onChanged?.();
         if (savedMugId) {
-          const nextFormState = {
-            ...form,
-            id: savedMugId,
+          const nextF = {
+            ...form, id: savedMugId,
+            collection_number: String(savedPayload.collection_number || ""),
             slug: savedPayload.slug,
-            city: payload.city || form.city,
-            brought_by: payload.brought_by || "",
-            brought_by_person_ids: payload.brought_by_person_ids,
-            color_keys: payload.color_keys,
-            type_values: payload.collection_keys,
-            note: payload.note || "",
-            received_at: payload.received_at || "",
-            is_published: payload.is_published,
           };
-
-          setPendingImageFiles([]);
-          setForm(nextFormState);
-          setInitialForm(nextFormState);
+          setPendingImageFiles([]); setForm(nextF); setInitialForm(nextF);
         }
-
-        setError(
-          uploadError.message ||
-            "Кружка сохранена, но не удалось загрузить фотографии. Можно добавить их повторно уже в режиме редактирования."
-        );
-        setSaving(false);
-        return;
+        setError(uploadError.message || "Кружка сохранена, но не удалось загрузить фото.");
+        setSaving(false); return;
       }
     }
 
-    await loadAll();
-    await onChanged?.();
-
-    closeFormImmediately();
-    setSaving(false);
+    await loadAll(); await onChanged?.();
+    closeFormImmediately(); setSaving(false);
   }
 
   async function deleteMug(mugId) {
-    const confirmed = window.confirm("Удалить эту кружку?");
-    if (!confirmed) return;
-
+    if (!window.confirm("Удалить эту кружку?")) return;
     setError("");
-
-    const { error: deleteError } = await supabase.from("mugs").delete().eq("id", mugId);
-
-    if (deleteError) {
-      setError(deleteError.message);
-      return;
-    }
-
-    await loadAll();
-    await onChanged?.();
+    const { error: err } = await supabase.from("mugs").delete().eq("id", mugId);
+    if (err) { setError(err.message); return; }
+    await loadAll(); await onChanged?.();
   }
 
+  // ── Prepared mugs ─────────────────────────────────────────────────────────
+
   const preparedMugs = useMemo(() => {
-    return mugs.map((mug) => {
+    return mugs.map(mug => {
+      const country = countriesById.get(String(mug.country_id || ""));
       const countryIso = resolveCountryIso(mug.country_id);
-      const cityEntity = citiesById.get(String(mug.city_id));
+      const stateEntity = statesById.get(String(mug.state_id || ""));
+      const cityEntity = citiesById.get(String(mug.city_id || ""));
+      const stateLabel = stateEntity ? getStateName(stateEntity, language) : "";
       const cityLabel = cityEntity
-        ? cityEntity.name_ru || cityEntity.name_en || mug.city || ""
-        : getCityDisplayName(mug.city_key, mug.city, "ru") || mug.city || "";
+        ? getCityName(cityEntity, language, mug.city || "")
+        : getCityDisplayName(mug.city_key, mug.city, language) || mug.city || "";
       const cityFilterValue = cityEntity
         ? cityEntity.key
         : buildCityFilterValue(mug.city_key, mug.city, countryIso);
-      const colorLabels = getColorLabels(mug.color_keys, "ru");
+      const colorLabels = getColorLabels(mug.color_keys, language);
       const typeValues = getTypeValues(mug.collection_keys, mug.mug_type);
-      const typeLabels = getTypeLabels(typeValues, "ru");
-
+      const typeLabels = getTypeLabels(typeValues, language);
       return {
-        ...mug,
-        countryIso,
-        cityLabel,
-        cityFilterValue,
-        colorLabels,
-        typeValues,
-        typeLabels,
+        ...mug, countryEntity: country, countryIso,
+        countryLabel: getCountryName(mug.country, language) || getCountryName(country, language),
+        stateLabel, cityLabel, cityFilterValue, colorLabels, typeValues, typeLabels,
       };
     });
-  }, [mugs, resolveCountryIso, citiesById]);
+  }, [mugs, resolveCountryIso, statesById, citiesById, countriesById, language]);
 
   const typeOptions = useMemo(() => {
-    const existingValues = preparedMugs.flatMap((mug) => mug.typeValues || []);
-    return buildTypeOptions({
-      selectedValues: form.type_values,
-      existingValues,
-      language: "ru",
-    });
-  }, [preparedMugs, form.type_values]);
+    const existing = preparedMugs.flatMap(m => m.typeValues || []);
+    return buildTypeOptions({ selectedValues: form.type_values, existingValues: existing, language });
+  }, [preparedMugs, form.type_values, language]);
 
   const cityFilterOptions = useMemo(() => {
-    const optionMap = new Map();
-
-    preparedMugs.forEach((mug) => {
+    const map = new Map();
+    preparedMugs.forEach(mug => {
       if (!mug.cityLabel) return;
-
-      if (!optionMap.has(mug.cityFilterValue)) {
-        optionMap.set(mug.cityFilterValue, {
-          value: mug.cityFilterValue,
-          label: mug.cityLabel,
+      const key = mug.cityFilterValue;
+      if (!map.has(key)) {
+        map.set(key, {
+          value: key,
+          label: mug.stateLabel ? `${mug.cityLabel} (${mug.stateLabel})` : mug.cityLabel,
+          count: 0,
         });
       }
+      map.get(key).count += 1;
     });
+    return [...map.values()]
+      .sort((a, b) => a.label.localeCompare(b.label, locale))
+      .map(o => ({ ...o, displayLabel: `${o.label} (${o.count})` }));
+  }, [preparedMugs, locale]);
 
-    return [...optionMap.values()].sort((a, b) => a.label.localeCompare(b.label, "ru"));
-  }, [preparedMugs]);
+  const countryFilterOptions = useMemo(() => {
+    const map = new Map();
+    preparedMugs.forEach(mug => {
+      if (!mug.countryLabel || !mug.country_id) return;
+      const key = String(mug.country_id);
+      if (!map.has(key)) {
+        map.set(key, { value: key, label: mug.countryLabel, count: 0 });
+      }
+      map.get(key).count += 1;
+    });
+    return [...map.values()]
+      .sort((a, b) => a.label.localeCompare(b.label, locale))
+      .map(o => ({ ...o, displayLabel: `${o.label} (${o.count})` }));
+  }, [preparedMugs, locale]);
 
   const filteredMugs = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const q = search.trim().toLowerCase();
+    const numQ = numberFilter.trim();
+    return preparedMugs
+      .filter(mug => {
+        // Exact match by collection number
+        if (numQ && String(mug.collection_number || "") !== numQ) return false;
+        if (countryFilter && String(mug.country_id || "") !== String(countryFilter)) return false;
+        if (cityFilter && mug.cityFilterValue !== cityFilter) return false;
+        if (q) {
+          const text = [
+            mug.title, mug.slug, mug.collection_number, mug.stateLabel,
+            mug.cityLabel, mug.brought_by, mug.mug_type,
+            mug.country?.name_en, mug.country?.name_ru, mug.countryLabel,
+            ...mug.colorLabels, ...mug.typeLabels,
+          ].filter(Boolean).join(" ").toLowerCase();
+          if (!text.includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const an = Number(a.collection_number || 0), bn = Number(b.collection_number || 0);
+        if (sortBy === "collection-asc") return an - bn;
+        if (sortBy === "country-asc") return String(a.countryLabel || "").localeCompare(String(b.countryLabel || ""), locale);
+        if (sortBy === "created-desc") return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+        if (sortBy === "updated-desc") return String(b.updated_at || "").localeCompare(String(a.updated_at || ""));
+        return bn - an;
+      });
+  }, [preparedMugs, search, numberFilter, countryFilter, cityFilter, sortBy, locale]);
 
-    const filtered = preparedMugs.filter((mug) => {
-      const matchesSearch =
-        !query ||
-        [
-          mug.title,
-          mug.slug,
-          mug.cityLabel,
-          mug.brought_by,
-          mug.mug_type,
-          mug.country?.name_en,
-          mug.country?.name_ru,
-          ...mug.colorLabels,
-          ...mug.typeLabels,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase()
-          .includes(query);
+  const activeFilters = [numberFilter, countryFilter, cityFilter].filter(Boolean).length;
 
-      const matchesCity = !cityFilter || mug.cityFilterValue === cityFilter;
-
-      return matchesSearch && matchesCity;
-    });
-
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "created-asc":
-          return String(a.created_at || "").localeCompare(String(b.created_at || ""));
-        case "updated-desc":
-          return String(b.updated_at || "").localeCompare(String(a.updated_at || ""));
-        case "updated-asc":
-          return String(a.updated_at || "").localeCompare(String(b.updated_at || ""));
-        case "created-desc":
-        default:
-          return String(b.created_at || "").localeCompare(String(a.created_at || ""));
-      }
-    });
-
-    return filtered;
-  }, [preparedMugs, search, cityFilter, sortBy]);
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <section className="card admin-card">
+
+      {/* ── Toolbar ─────────────────────────────────────────────────────── */}
       <div className="admin-toolbar">
         <div>
           <div className="section-title">Администрирование кружек</div>
           <p className="admin-subtitle">
-            Здесь можно добавлять, редактировать и удалять кружки, а также управлять их цветами, типами и городами.
+            Здесь можно добавлять, редактировать и удалять кружки, управлять цветами, типами и городами.
           </p>
         </div>
 
-        <div className="admin-actions" style={{ alignItems: "stretch" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ position: "relative", flex: "1 1 240px" }}>
+            <span style={{
+              position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
+              color: "#8a9e96", pointerEvents: "none",
+            }}>🔍</span>
+            <input
+              className="admin-search"
+              type="text"
+              placeholder="Поиск по названию, стране, городу, цвету..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ paddingLeft: 36 }}
+            />
+          </div>
+
           <input
             className="admin-search"
-            type="text"
-            placeholder="Поиск по кружке, стране, цвету, типу"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            type="number"
+            min="1"
+            placeholder="№ кружки"
+            value={numberFilter}
+            onChange={e => setNumberFilter(e.target.value.replace(/[^\d]/g, ""))}
+            style={{ width: 100, flex: "0 0 auto" }}
+            title="Точный поиск по номеру коллекции"
           />
 
-          <select
-            className="admin-search"
-            value={cityFilter}
-            onChange={(event) => setCityFilter(event.target.value)}
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(p => !p)}
+            className="secondary-button"
+            style={{
+              background: filtersOpen ? "#153126" : undefined,
+              color: filtersOpen ? "#fff" : undefined,
+              display: "flex", alignItems: "center", gap: 6,
+            }}
           >
-            <option value="">Все города</option>
-            {cityFilterOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            ⚙ Фильтры
+            {activeFilters > 0 && (
+              <span style={{
+                background: "#1f6f54", color: "#fff",
+                borderRadius: 999, padding: "1px 7px", fontSize: 11, fontWeight: 700,
+              }}>{activeFilters}</span>
+            )}
+          </button>
 
           <select
             className="admin-search"
             value={sortBy}
-            onChange={(event) => setSortBy(event.target.value)}
+            onChange={e => setSortBy(e.target.value)}
+            style={{ flex: "0 0 auto" }}
           >
-            <option value="created-desc">Сначала недавно добавленные</option>
-            <option value="created-asc">Сначала давно добавленные</option>
-            <option value="updated-desc">Сначала недавно изменённые</option>
-            <option value="updated-asc">Сначала давно изменённые</option>
+            <option value="collection-desc">№: новые сверху</option>
+            <option value="collection-asc">№: старые сверху</option>
+            <option value="country-asc">Страна А→Я</option>
+            <option value="created-desc">Недавно добавленные</option>
+            <option value="updated-desc">Недавно изменённые</option>
           </select>
 
           <button className="secondary-button" onClick={loadAll} type="button" disabled={saving}>
             Обновить
           </button>
-          <button
-            className="primary-button"
-            onClick={openCreateForm}
-            type="button"
-            disabled={isFormOpen}
-          >
-            Добавить кружку
+          <button className="primary-button" onClick={openCreateForm} type="button" disabled={isFormOpen}>
+            + Добавить кружку
           </button>
         </div>
-      </div>
 
-      {isFormOpen && (
-        <form className="admin-form-card" onSubmit={saveForm} style={{ position: "relative" }}>
-          <button
-            type="button"
-            onClick={requestCloseForm}
-            disabled={saving}
-            style={{
-              position: "absolute",
-              top: "16px",
-              right: "16px",
-              background: "none",
-              border: "none",
-              fontSize: "24px",
-              color: "#999",
-              cursor: "pointer",
-              padding: "4px 8px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-            title="Закрыть форму"
-          >
-            ✕
-          </button>
-
-          <div className="admin-form-grid">
-            <label className="field">
-              <span>Название *</span>
-              <input
-                type="text"
-                value={form.title}
-                onChange={(event) => updateForm("title", event.target.value)}
-                placeholder="Например: Starbucks Warsaw Mug"
-              />
-            </label>
-
-            <label className="field">
-              <span>Slug</span>
-              <input
-                type="text"
-                value={form.slug}
-                onChange={(event) => updateForm("slug", event.target.value)}
-                placeholder="Можно оставить пустым"
-              />
-            </label>
-
-            <label className="field">
-              <span>Страна *</span>
-              <select
-                value={form.country_id}
-                onChange={(event) => updateCountry(event.target.value)}
-              >
-                <option value="">Выберите страну</option>
-                {countryDisplayOptions.map((country) => (
-                  <option key={country.value} value={country.value}>
-                    {country.label}
-                  </option>
-                ))}
+        {filtersOpen && (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: 12, padding: 16,
+            background: "#f8f4ed", borderRadius: 16,
+            border: "1px solid #eadfce", marginTop: 4,
+          }}>
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 700, color: "#31443a" }}>
+              Страна
+              <select className="admin-search" value={countryFilter} onChange={e => { setCountryFilter(e.target.value); setCityFilter(""); }}>
+                <option value="">Все страны</option>
+                {countryFilterOptions.map(o => <option key={o.value} value={o.value}>{o.displayLabel}</option>)}
               </select>
             </label>
-
-            <label className="field" style={{ position: "relative" }}>
-              <span>Город *</span>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <select
-                  value={form.city_key}
-                  onChange={(event) => updateCity(event.target.value)}
-                  disabled={!form.country_id}
-                  style={{ flex: 1 }}
-                >
-                  <option value="">
-                    {form.country_id ? "Выберите город" : "Сначала выберите страну"}
-                  </option>
-                  {currentCityOptions.map((city) => (
-                    <option key={city.key} value={city.key}>
-                      {getLocalizedOptionLabel(city, "ru")}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={!form.country_id || isCreatingCity}
-                  onClick={() => {
-                    if (!form.country_id) {
-                      setCityCreateError("Выберите страну перед добавлением города.");
-                      return;
-                    }
-                    setIsCityCreatorOpen(true);
-                  }}
-                  style={{ minWidth: 44, padding: "0 12px" }}
-                  title="Добавить новый город"
-                >
-                  +
-                </button>
-              </div>
-              {citiesError ? (
-                <span className="field-hint">{citiesError}</span>
-              ) : form.country_id && !hasDbCitiesForCurrentCountry ? (
-                <span className="field-hint">
-                  Для выбранной страны в таблице `cities` пока нет городов. Добавьте их в базе, и они сразу появятся в списке.
-                </span>
-              ) : (
-                <span className="field-hint">
-                  Список городов берётся из таблицы `cities` и фильтруется по выбранной стране.
-                </span>
-              )}
+            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 700, color: "#31443a" }}>
+              Город
+              <select className="admin-search" value={cityFilter} onChange={e => setCityFilter(e.target.value)}>
+                <option value="">Все города</option>
+                {cityFilterOptions.map(o => <option key={o.value} value={o.value}>{o.displayLabel}</option>)}
+              </select>
             </label>
-            {isCityCreatorOpen ? (
-              <div
-                style={{
-                  marginTop: 8,
-                  padding: "12px 14px",
-                  borderRadius: 12,
-                  border: "1px solid #d1d5db",
-                  background: "#f9fafb",
-                }}
+            <div style={{ display: "flex", alignItems: "flex-end" }}>
+              <button
+                type="button" className="secondary-button"
+                onClick={() => { setCountryFilter(""); setCityFilter(""); setNumberFilter(""); setSearch(""); }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <input
-                    type="text"
-                    value={newCityName}
-                    onChange={(event) => setNewCityName(event.target.value)}
-                    placeholder="Введите название нового города"
-                    style={{ flex: 1 }}
-                  />
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={createCity}
-                    disabled={isCreatingCity}
-                  >
-                    {isCreatingCity ? "Сохраняем..." : "Создать город"}
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={closeCityCreator}
-                    disabled={isCreatingCity}
-                  >
-                    Отмена
-                  </button>
-                </div>
-                {cityCreateError ? (
-                  <div style={{ marginTop: 8, color: "#b91c1c" }}>{cityCreateError}</div>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div className="field">
-              <span>Тип</span>
-              <TypeSelect
-                value={form.type_values}
-                options={typeOptions}
-                onChange={(typeValues) =>
-                  updateForm("type_values", typeValues || [])
-                }
-              />
+                Сбросить все
+              </button>
             </div>
-
-            <label className="field">
-              <span>Дата получения</span>
-              <input
-                type="date"
-                value={form.received_at}
-                onChange={(event) => updateForm("received_at", event.target.value)}
-              />
-            </label>
-
-            <label className="field">
-              <span>Кто привёз (источник)</span>
-              <PersonSelect
-                value={form.brought_by_person_ids}
-                onChange={(personIds, persons) => {
-                  updateForm("brought_by_person_ids", personIds || []);
-
-                  if (Array.isArray(persons) && persons.length > 0) {
-                    updateForm(
-                      "brought_by",
-                      persons.map((person) => `${person.first_name} ${person.last_name}`).join(", ")
-                    );
-                  }
-                }}
-              />
-            </label>
-
-            <label className="field">
-              <span>Кто привёз (текст для совместимости)</span>
-              <input
-                type="text"
-                value={form.brought_by}
-                onChange={(event) => updateForm("brought_by", event.target.value)}
-                placeholder="Заполнится автоматически, но можно поправить"
-              />
-            </label>
-
-            <div className="field field-wide">
-              <span style={{ display: "block", marginBottom: "8px", fontWeight: 600 }}>
-                Основные цвета
-              </span>
-              <SelectableChipGroup
-                options={COLOR_OPTIONS}
-                values={form.color_keys}
-                onToggle={(optionKey) => toggleMultiValue("color_keys", optionKey)}
-                emptyText="Цвета пока недоступны"
-                showSwatch
-              />
-            </div>
-
-            <label className="checkbox-cell field-wide">
-              <input
-                type="checkbox"
-                checked={form.is_published}
-                onChange={(event) => updateForm("is_published", event.target.checked)}
-              />
-              <span>Опубликовано</span>
-            </label>
-
-            <label className="field field-wide">
-              <span>Заметка</span>
-              <textarea
-                rows="4"
-                value={form.note}
-                onChange={(event) => updateForm("note", event.target.value)}
-                placeholder="Любая дополнительная информация"
-              />
-            </label>
           </div>
+        )}
+      </div>
 
-          <MugImagesManager
-            mugId={form.id}
-            pendingFiles={pendingImageFiles}
-            onPendingFilesChange={setPendingImageFiles}
-            onChanged={async () => {
-              await loadAll();
-              await onChanged?.();
-            }}
-          />
-
-          {error && <div className="form-error">{error}</div>}
-
-          <div className="form-actions">
-            <button className="primary-button" type="submit" disabled={saving}>
-              {saving ? "Сохраняем..." : form.id ? "Сохранить" : "Создать"}
-            </button>
-
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={requestCloseForm}
-              disabled={saving}
-            >
-              Отмена
-            </button>
-          </div>
-        </form>
-      )}
-
+      {/* ── Table ───────────────────────────────────────────────────────── */}
       {loading ? (
-        <div className="empty-state">
-          <h2>Загрузка кружек…</h2>
-          <p>Получаем данные из базы.</p>
-        </div>
-      ) : error ? (
-        <div className="empty-state">
-          <h2>Ошибка</h2>
-          <p>{error}</p>
-        </div>
+        <div className="empty-state"><h2>Загрузка…</h2></div>
+      ) : error && !isFormOpen ? (
+        <div className="empty-state"><h2>Ошибка</h2><p>{error}</p></div>
       ) : (
         <div className="admin-table-wrap">
           <table className="admin-table">
             <thead>
               <tr>
+                <th>№</th>
                 <th>Название</th>
                 <th>Страна</th>
+                <th>Штат</th>
                 <th>Город</th>
                 <th>Тип</th>
                 <th>Цвета</th>
                 <th>Дата получения</th>
-                <th>Добавлена</th>
-                <th>Последнее редактирование</th>
                 <th>Статус</th>
                 <th>Действия</th>
               </tr>
             </thead>
             <tbody>
-              {filteredMugs.map((mug) => (
+              {filteredMugs.map(mug => (
                 <tr key={mug.id}>
+                  <td><strong>{mug.collection_number || "—"}</strong></td>
                   <td>
                     <div className="table-title">{mug.title}</div>
-                    <div className="table-subtitle">{mug.slug}</div>
+                    {mug.brought_by && <div className="table-subtitle">{mug.brought_by}</div>}
                   </td>
-                  <td>{mug.country?.name_ru || mug.country?.name_en || "—"}</td>
+                  <td>{mug.countryLabel || "—"}</td>
+                  <td>{mug.stateLabel || "—"}</td>
                   <td>{mug.cityLabel || "—"}</td>
                   <td>{mug.typeLabels.join(", ") || "—"}</td>
                   <td>{mug.colorLabels.join(", ") || "—"}</td>
                   <td>{mug.received_at || "—"}</td>
-                  <td>{formatDateTime(mug.created_at)}</td>
-                  <td>{formatDateTime(mug.updated_at)}</td>
                   <td>
-                    <span
-                      className={
-                        mug.is_published
-                          ? "status-badge status-badge-light"
-                          : "status-badge status-badge-gray"
-                      }
-                    >
+                    <span className={mug.is_published ? "status-badge status-badge-light" : "status-badge status-badge-gray"}>
                       {mug.is_published ? "published" : "draft"}
                     </span>
                   </td>
@@ -1405,36 +1108,336 @@ function MugsAdmin({ onChanged }) {
                       <button
                         className="secondary-button"
                         onClick={() => openEditForm(mug)}
-                        type="button"
-                        disabled={isFormOpen || saving}
-                      >
-                        Редактировать
-                      </button>
+                        type="button" disabled={saving}
+                      >Редактировать</button>
                       <button
                         className="danger-button"
                         onClick={() => deleteMug(mug.id)}
-                        type="button"
-                        disabled={isFormOpen || saving}
-                      >
-                        Удалить
-                      </button>
+                        type="button" disabled={saving}
+                      >Удалить</button>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-
           {filteredMugs.length === 0 && (
             <div className="empty-inline">Ничего не найдено.</div>
           )}
         </div>
       )}
 
+      {/* ── Drawer ──────────────────────────────────────────────────────── */}
+      <Drawer
+        isOpen={isFormOpen}
+        onClose={requestCloseForm}
+        title={form.id ? `Редактировать кружку #${form.collection_number}` : "Новая кружка"}
+      >
+        <form onSubmit={saveForm}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+
+            {/* ── Основное ── */}
+            <SectionDivider title="Основное" />
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>
+                  Название <span style={{ color: "#dc2626" }}>*</span>
+                </span>
+                <input
+                  type="text"
+                  value={form.title}
+                  onChange={e => updateForm("title", e.target.value)}
+                  placeholder="Например: Starbucks Warsaw"
+                />
+              </label>
+            </div>
+
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>Дата получения</span>
+              <input
+                type="date"
+                value={form.received_at}
+                onChange={e => updateForm("received_at", e.target.value)}
+              />
+            </label>
+
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>
+                № в коллекции <span style={{ color: "#dc2626" }}>*</span>
+              </span>
+              <input
+                type="number" min="1" step="1"
+                value={form.collection_number}
+                onChange={e => updateCollectionNumber(e.target.value)}
+                placeholder={`Например: ${nextCollectionNumber}`}
+              />
+              <span style={{ fontSize: 11, color: "#8a9e96" }}>
+                Порядковый номер, совпадает с нумерацией в Instagram
+              </span>
+            </label>
+
+            {/* ── Кто привёз ── */}
+            <SectionDivider title="Кто привёз" />
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>
+                  Выбрать из справочника
+                </span>
+                <PersonSelect
+                  value={form.brought_by_person_ids}
+                  onChange={(personIds, persons) => {
+                    updateForm("brought_by_person_ids", personIds || []);
+                    if (Array.isArray(persons) && persons.length > 0) {
+                      updateForm("brought_by", persons.map(p => `${p.first_name} ${p.last_name}`).join(", "));
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            {/* Текстовое поле — только если человек не выбран из справочника */}
+            {form.brought_by_person_ids.length === 0 && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>
+                    Или введите текстом
+                  </span>
+                  <input
+                    type="text"
+                    value={form.brought_by}
+                    onChange={e => updateForm("brought_by", e.target.value)}
+                    placeholder="Имя или @instagram"
+                  />
+                </label>
+              </div>
+            )}
+
+            {/* ── География ── */}
+            <SectionDivider title="География" />
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>
+                  Страна <span style={{ color: "#dc2626" }}>*</span>
+                </span>
+                <select value={form.country_id} onChange={e => updateCountry(e.target.value)}>
+                  <option value="">Выберите страну</option>
+                  {countryDisplayOptions.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {currentCountryHasStates && (
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>Штат / регион</span>
+                <select value={form.state_id} onChange={e => updateState(e.target.value)}>
+                  <option value="">Не выбран</option>
+                  {currentStateOptions.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+                {statesError && (
+                  <span style={{ fontSize: 11, color: "#dc2626" }}>{statesError}</span>
+                )}
+              </label>
+            )}
+
+            <label style={{
+              display: "grid", gap: 6,
+              gridColumn: currentCountryHasStates ? "auto" : "1 / -1",
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>Город</span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <select
+                  value={form.city_key}
+                  onChange={e => updateCity(e.target.value)}
+                  disabled={!form.country_id || (currentCountryHasStates && !form.state_id)}
+                  style={{ flex: 1 }}
+                >
+                  <option value="">
+                    {!form.country_id
+                      ? "Сначала выберите страну"
+                      : currentCountryHasStates && !form.state_id
+                        ? "Сначала выберите штат"
+                        : "Не выбран"}
+                  </option>
+                  {(() => {
+                    // Count popular cities (those with _mugCount > 0, top 5)
+                    const popular = currentCityOptions.filter(c => c._mugCount > 0).slice(0, 5);
+                    const rest = currentCityOptions.filter(c => !popular.includes(c));
+                    if (popular.length === 0) {
+                      return currentCityOptions.map(c => (
+                        <option key={c.key} value={c.key}>
+                          {getLocalizedOptionLabel(c, language)}
+                        </option>
+                      ));
+                    }
+                    return (
+                      <>
+                        <optgroup label="⭐ Популярные">
+                          {popular.map(c => (
+                            <option key={c.key} value={c.key}>
+                              {getLocalizedOptionLabel(c, language)}
+                            </option>
+                          ))}
+                        </optgroup>
+                        {rest.length > 0 && (
+                          <optgroup label="Все города">
+                            {rest.map(c => (
+                              <option key={c.key} value={c.key}>
+                                {getLocalizedOptionLabel(c, language)}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </>
+                    );
+                  })()}
+                </select>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={!form.country_id || isCreatingCity || (currentCountryHasStates && !form.state_id)}
+                  onClick={() => setIsCityCreatorOpen(true)}
+                  style={{ minWidth: 36, padding: "0 10px" }}
+                  title="Добавить город"
+                >+</button>
+              </div>
+              {citiesError && <span style={{ fontSize: 11, color: "#dc2626" }}>{citiesError}</span>}
+              {!hasDbCities && form.country_id && !(currentCountryHasStates && !form.state_id) && (
+                <span style={{ fontSize: 11, color: "#8a9e96" }}>
+                  Городов пока нет. Нажмите + чтобы добавить.
+                </span>
+              )}
+            </label>
+
+            {isCityCreatorOpen && (
+              <div style={{
+                gridColumn: "1 / -1",
+                padding: "12px 14px", borderRadius: 12,
+                background: "#f9f7f3", border: "1px solid #e2e8e3",
+                display: "grid", gap: 8,
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>Новый город</span>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <input
+                    type="text"
+                    value={newCityName}
+                    onChange={e => setNewCityName(e.target.value)}
+                    placeholder="Название города"
+                    style={{ flex: 1 }}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); createCity(); } }}
+                  />
+                  <button type="button" className="primary-button" onClick={createCity} disabled={isCreatingCity}>
+                    {isCreatingCity ? "Создаём…" : "Создать"}
+                  </button>
+                  <button type="button" className="secondary-button" onClick={closeCityCreator} disabled={isCreatingCity}>
+                    Отмена
+                  </button>
+                </div>
+                {cityCreateError && (
+                  <span style={{ color: "#b91c1c", fontSize: 12 }}>{cityCreateError}</span>
+                )}
+              </div>
+            )}
+
+            {/* ── Характеристики ── */}
+            <SectionDivider title="Характеристики" />
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>Тип / коллекция</span>
+                <TypeSelect
+                  value={form.type_values}
+                  options={typeOptions}
+                  onChange={vals => updateForm("type_values", vals || [])}
+                />
+              </label>
+            </div>
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a", display: "block", marginBottom: 10 }}>
+                Цвета
+              </span>
+              <ColorChips
+                options={COLOR_OPTIONS}
+                values={form.color_keys}
+                onToggle={key => toggleMultiValue("color_keys", key)}
+                language={language}
+              />
+            </div>
+
+            {/* ── История и публикация ── */}
+            <SectionDivider title="История и публикация" />
+
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>История / заметка</span>
+                <textarea
+                  rows="4"
+                  value={form.note}
+                  onChange={e => updateForm("note", e.target.value)}
+                  placeholder="Откуда кружка, интересная история, особенности..."
+                />
+              </label>
+            </div>
+
+            <label style={{
+              display: "flex", alignItems: "center", gap: 10,
+              cursor: "pointer", gridColumn: "1 / -1",
+            }}>
+              <input
+                type="checkbox"
+                checked={form.is_published}
+                onChange={e => updateForm("is_published", e.target.checked)}
+                style={{ width: 18, height: 18 }}
+              />
+              <span style={{ fontSize: 14, color: "#1f2937" }}>
+                Опубликовано (видно на сайте)
+              </span>
+            </label>
+
+          </div>
+
+          {/* Images */}
+          <div style={{ marginTop: 20 }}>
+            <MugImagesManager
+              mugId={form.id}
+              pendingFiles={pendingImageFiles}
+              onPendingFilesChange={setPendingImageFiles}
+              onChanged={async () => { await loadAll(); await onChanged?.(); }}
+            />
+          </div>
+
+          {error && (
+            <div style={{
+              marginTop: 16, padding: "12px 14px", borderRadius: 12,
+              background: "#fef2f2", border: "1px solid #fecaca",
+              color: "#b91c1c", fontSize: 14,
+            }}>
+              {error}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
+            <button className="secondary-button" type="button" onClick={requestCloseForm} disabled={saving}>
+              Отмена
+            </button>
+            <button className="primary-button" type="submit" disabled={saving}>
+              {saving ? "Сохраняем…" : form.id ? "Сохранить" : "Создать кружку"}
+            </button>
+          </div>
+        </form>
+      </Drawer>
+
       <ConfirmModal
         isOpen={isDiscardModalOpen}
-        title="Закрыть форму без сохранения?"
-        message="Вы внесли изменения в форму. Если закрыть её сейчас, несохранённые данные будут потеряны."
+        title="Закрыть без сохранения?"
+        message="Вы внесли изменения. Они будут потеряны если закрыть форму сейчас."
         confirmLabel="Закрыть без сохранения"
         cancelLabel="Продолжить редактирование"
         danger
@@ -1446,3 +1449,16 @@ function MugsAdmin({ onChanged }) {
 }
 
 export default MugsAdmin;
+
+// ── MugEditDrawer — use in CatalogPage for inline editing ──────────────────
+export function MugEditDrawer({ mugId, onClose, onChanged, language = "ru" }) {
+  if (!mugId) return null;
+  return (
+    <MugsAdmin
+      onChanged={onChanged}
+      language={language}
+      initialEditMugId={mugId}
+      onEmbeddedClose={onClose}
+    />
+  );
+}

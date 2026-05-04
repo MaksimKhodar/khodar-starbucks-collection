@@ -1,0 +1,53 @@
+{
+  "participants": [
+    {
+      "name": "Safran Restaurant"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1745075059697,
+      "content": "Thanks",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1745075055396,
+      "content": "I'll be in 30 minutes",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1745075036740,
+      "content": "But I was stuck in traffic",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1745075015946,
+      "content": "I booked a table today for 2, 18.00 in City Lights",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1745074981852,
+      "content": "Hello",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Safran Restaurant",
+  "is_still_participant": true,
+  "thread_path": "inbox/safranrestaurant_1628445008557515",
+  "magic_words": [
+    
+  ]
+}

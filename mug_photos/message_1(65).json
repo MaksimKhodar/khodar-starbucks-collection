@@ -1,0 +1,32 @@
+{
+  "participants": [
+    {
+      "name": "Instagram User"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Instagram User",
+      "timestamp_ms": 1732287212709,
+      "content": "\u00f0\u009f\u0093\u00a2 Interested to grow ur IG, Tiktok, Facebook, Youtube, or X with genuine \u00f0\u009f\u0091\u00a5 Followers & \u00f0\u009f\u0094\u009d Engagement?\n-----------------\nShoot us \u00f0\u009f\u0092\u00ac a message to our page @socialrate2 for more Info.\n-----------------\n\u00f0\u009f\u0094\u00b91\u00d0\u00ba followers: $12\n\u00f0\u009f\u0094\u00b93\u00d0\u00ba followers: $35\n\u00f0\u009f\u0094\u00b95\u00d0\u00ba followers: $54\n\u00f0\u009f\u0094\u00b810\u00d0\u00ba followers: $96\n\u00f0\u009f\u0094\u00b820\u00d0\u00ba followers: $180\n\u00f0\u009f\u0094\u00b850\u00d0\u00ba followers: $420\n-----------------\n\u00f0\u009f\u0094\u00a5 FREE Test Available.\n\u00f0\u009f\u0094\u0092 No password required.\n-----------------\n\u00f0\u009f\u009a\u0080 Likes, Views & Comments.\n\u00f0\u009f\u0091\u008c \u00f0\u009f\u0092\u00af% Guaranteed.\n-----------------\n\u00e2\u009c\u0089\u00ef\u00b8\u008f To contact:\nInstagram: @socialrate2\nWhatsApp: +212 697 600 466",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Instagram User",
+      "timestamp_ms": 1732287204087,
+      "content": "Instagram User sent an attachment.",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Instagram User",
+  "is_still_participant": true,
+  "thread_path": "inbox/instagramuser_17885552265118317",
+  "magic_words": [
+    
+  ]
+}

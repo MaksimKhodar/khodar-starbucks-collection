@@ -1,0 +1,27 @@
+{
+  "participants": [
+    {
+      "name": "\u00d0\u009d\u00d0\u00b0\u00d1\u0081\u00d1\u0082\u00d1\u008f | \u00d0\u009e\u00d0\u00b1\u00d0\u00b7\u00d0\u00be\u00d1\u0080\u00d1\u008b & \u00d0\u00a1\u00d1\u0082\u00d0\u00b0\u00d0\u00bc\u00d0\u00b1\u00d1\u0083\u00d0\u00bb"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1710075182279,
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3320673607224596515"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "\u00d0\u009d\u00d0\u00b0\u00d1\u0081\u00d1\u0082\u00d1\u008f | \u00d0\u009e\u00d0\u00b1\u00d0\u00b7\u00d0\u00be\u00d1\u0080\u00d1\u008b & \u00d0\u00a1\u00d1\u0082\u00d0\u00b0\u00d0\u00bc\u00d0\u00b1\u00d1\u0083\u00d0\u00bb",
+  "is_still_participant": true,
+  "thread_path": "inbox/nastaobzorystambul_1375595810504846",
+  "magic_words": [
+    
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "participants": [
+    {
+      "name": "Instagram User"
+    },
+    {
+      "name": "Khaled"
+    },
+    {
+      "name": "Worldwide Starbucks Mugs"
+    },
+    {
+      "name": "\u00d9\u0085\u00d8\u00ad\u00d9\u0085\u00d8\u00af \u00d8\u00a7\u00d9\u0084\u00d8\u00b3\u00d9\u0084\u00d8\u00b7\u00d8\u00a7\u00d9\u0086 mohamad alsultan"
+    },
+    {
+      "name": "Maksim Khodar"
+    },
+    {
+      "name": "Jenan Ali"
+    },
+    {
+      "name": "Jawan Ali  ALTubaikh \u00f0\u009f\u00a7\u00bf"
+    },
+    {
+      "name": "Eliu rey"
+    },
+    {
+      "name": "Instagram User"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Instagram User",
+      "timestamp_ms": 1713539261053,
+      "content": "Instagram User sent an attachment.",
+      "reactions": [
+        {
+          "reaction": "\u00e2\u009d\u00a4",
+          "actor": "\u00d9\u0085\u00d8\u00ad\u00d9\u0085\u00d8\u00af \u00d8\u00a7\u00d9\u0084\u00d8\u00b3\u00d9\u0084\u00d8\u00b7\u00d8\u00a7\u00d9\u0086 mohamad alsultan",
+          "timestamp": 1713542467
+        }
+      ],
+      "share": {
+        "link": "https://www.instagram.com/reel/C5nzbbLtm55/?id=3343867433331355257_62594833802",
+        "share_text": "",
+        "original_content_owner": "love.in.air.26"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Instagram User, Khaled, Worldwide Starbucks Mugs and 5 others",
+  "is_still_participant": true,
+  "thread_path": "inbox/instagramuserkhaledworldwidestarbucksmugsand5others_25236304769347351",
+  "magic_words": [
+    
+  ],
+  "joinable_mode": {
+    "mode": 2,
+    "link": "https://ig.me/j/Aba2cgnGxfmeosY3/"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "participants": [
+    {
+      "name": "ali.hander"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1772962822134,
+      "content": "You sent an attachment.",
+      "share": {
+        "link": "https://www.instagram.com/p/DVnmbg0ijgL/?carousel_share_child_media_id=3848213423045883915_63481558316",
+        "share_text": "#178\n\n\u00d0\u0095\u00d1\u0089\u00d0\u00b5 \u00d0\u00be\u00d0\u00b4\u00d0\u00bd\u00d0\u00b0 \u00d0\u00ba\u00d1\u0080\u00d1\u0083\u00d0\u00b6\u00d0\u00ba\u00d0\u00b0 \u00d0\u00be\u00d1\u0082 @ali.hander. \u00d0\u00b8\u00d1\u0081\u00d1\u0082\u00d0\u00be\u00d1\u0080\u00d0\u00b8\u00d1\u008e \u00d1\u0081\u00d0\u00bc\u00d0\u00be\u00d1\u0082\u00d1\u0080\u00d0\u00b8 \u00d0\u00b2 \u00d0\u00bf\u00d0\u00be\u00d1\u0081\u00d1\u0082\u00d0\u00b5 177\n\n\u00d0\u00a1\u00d0\u00bf\u00d0\u00b0\u00d1\u0081\u00d0\u00b8\u00d0\u00b1\u00d0\u00be!\n\n#starbucks #starbucks_mug #mug #mug_collection starbucks_collection",
+        "original_content_owner": "khodar_starbucks_collection"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "ali.hander",
+  "is_still_participant": true,
+  "thread_path": "inbox/alihander_17946068364118317",
+  "magic_words": [
+    
+  ]
+}

@@ -11,839 +11,606 @@ import PeopleAdmin from "./components/PeopleAdmin";
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { normalizeIso2, formatDate } from "./lib/utils";
 
-function extractCountryPayload(payload) {
-  if (!payload) {
-    return { iso: "", label: "" };
-  }
+const ADMIN_TOKEN_STORAGE_KEY = "khodar_admin_token";
+const ADMIN_ONLY_VIEWS = new Set(["people", "countries", "mugs", "people-admin"]);
 
+// ─── Hero text ────────────────────────────────────────────────────────────────
+// Based on real captions: trips, friends who remembered, broken mugs that stay,
+// 11 years of geography-as-autobiography
+
+const HERO = {
+  ru: {
+    eyebrow: "Личная коллекция",
+    title: "11 лет. 41 страна.\nКаждая кружка — история.",
+    text: "Всё началось с минского ЦУМа в 2014-м и поездки в Дублин, где я влюбился в Starbucks. С тех пор каждая кружка — это место, момент или человек: командировка в Женеву, ночь в Стамбуле с лучшим другом, сюрприз из Нью-Йорка без повода. Некоторые кружки разбились — но здесь они живут.",
+    // Stats — labels with context
+    stat1label: "кружек в коллекции",
+    stat2label: (withMugs, total) => `${withMugs} из ${total} стран со Starbucks`,
+    stat2sub: (missing) => `в ${missing} странах кружек ещё нет`,
+    stat3label: "человек привезли кружки",
+    stat3sub: "стали частью коллекции",
+    legendTitle: "Легенда карты",
+    l1: "Starbucks нет", l2: "Есть Starbucks, кружек пока нет", l3: "Есть кружки",
+    hint: "Нажми на страну — отфильтрует каталог",
+    mugsLabel: "кружек",
+    remaining: (n) => `ещё ${n} стран ждут`,
+  },
+  en: {
+    eyebrow: "Personal collection",
+    title: "11 years. 41 countries.\nEvery mug has a story.",
+    text: "It started in a Minsk department store in 2014 and a year in Dublin where I fell in love with Starbucks. Since then every mug is a place, a moment, or a person: a work trip to Geneva, a night in Istanbul with my best friend, a surprise from New York for no reason. Some mugs broke — but they live on here.",
+    stat1label: "mugs in the collection",
+    stat2label: (withMugs, total) => `${withMugs} of ${total} Starbucks countries`,
+    stat2sub: (missing) => `${missing} countries still waiting`,
+    stat3label: "people brought mugs",
+    stat3sub: "became part of this story",
+    legendTitle: "Map legend",
+    l1: "No Starbucks", l2: "Starbucks, no mugs yet", l3: "Has mugs",
+    hint: "Click a country to filter the catalog",
+    mugsLabel: "mugs",
+    remaining: (n) => `${n} more countries to go`,
+  },
+};
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+function extractRegionPayload(payload) {
+  if (!payload) return { regionCode: "", countryIso: "", stateCode: "", label: "" };
   if (typeof payload === "object") {
-    return {
-      iso: normalizeIso2(
-        payload.code || payload.iso || payload.countryCode || ""
-      ),
-      label: payload.name || payload.label || payload.countryName || "",
-    };
+    const regionCode = String(payload.regionCode || payload.code || payload.iso || payload.countryCode || "").trim().toUpperCase();
+    const countryIso = normalizeIso2(payload.countryIso || payload.countryCode || payload.country_iso2 || (regionCode.startsWith("US-") ? "US" : regionCode));
+    const stateCode = String(payload.stateCode || payload.state_code || (regionCode.startsWith("US-") ? regionCode.slice(3, 5) : "")).trim().toUpperCase();
+    return { regionCode, countryIso, stateCode, label: payload.name || payload.label || "" };
   }
-
-  return {
-    iso: normalizeIso2(String(payload || "")),
-    label: "",
-  };
+  const regionCode = String(payload || "").trim().toUpperCase();
+  return { regionCode, countryIso: regionCode.startsWith("US-") ? "US" : normalizeIso2(regionCode), stateCode: regionCode.startsWith("US-") ? regionCode.slice(3, 5) : "", label: "" };
 }
+
+// ─── LanguageSwitch ───────────────────────────────────────────────────────────
 
 function LanguageSwitch() {
   const { language, setLanguage } = useLanguage();
-
   return (
-    <div
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "8px",
-        padding: "6px",
-        borderRadius: "999px",
-        background: "#f5efe6",
-        border: "1px solid #eadfce",
-        boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => setLanguage("ru")}
-        style={{
-          border: "none",
-          borderRadius: "999px",
-          padding: "8px 14px",
-          cursor: "pointer",
-          fontWeight: 600,
-          background: language === "ru" ? "#1f6f54" : "transparent",
-          color: language === "ru" ? "#ffffff" : "#1f2937",
-          transition: "all 0.2s ease",
-        }}
-      >
-        RU
-      </button>
-
-      <button
-        type="button"
-        onClick={() => setLanguage("en")}
-        style={{
-          border: "none",
-          borderRadius: "999px",
-          padding: "8px 14px",
-          cursor: "pointer",
-          fontWeight: 600,
-          background: language === "en" ? "#1f6f54" : "transparent",
-          color: language === "en" ? "#ffffff" : "#1f2937",
-          transition: "all 0.2s ease",
-        }}
-      >
-        EN
-      </button>
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: 3, borderRadius: 999, background: "#f5efe6", border: "1px solid #eadfce" }}>
+      {["ru", "en"].map(lang => (
+        <button key={lang} type="button" onClick={() => setLanguage(lang)} style={{
+          border: "none", borderRadius: 999, padding: "5px 12px", cursor: "pointer",
+          fontWeight: 600, fontSize: 13,
+          background: language === lang ? "#1f6f54" : "transparent",
+          color: language === lang ? "#fff" : "#1f2937",
+          transition: "all 0.15s",
+        }}>{lang.toUpperCase()}</button>
+      ))}
     </div>
   );
 }
 
+// ─── AdminLoginModal ──────────────────────────────────────────────────────────
+
+function AdminLoginModal({ isOpen, language, loading, error, onClose, onSubmit }) {
+  const [password, setPassword] = useState("");
+  useEffect(() => { if (!isOpen) setPassword(""); }, [isOpen]);
+  if (!isOpen) return null;
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,23,42,0.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ width: "100%", maxWidth: 420, borderRadius: 24, background: "#fff", boxShadow: "0 20px 50px rgba(0,0,0,0.18)", padding: 24 }}>
+        <form onSubmit={e => { e.preventDefault(); onSubmit(password); }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#153126", marginBottom: 18 }}>
+            {language === "en" ? "Admin login" : "Вход для администратора"}
+          </div>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+            placeholder={language === "en" ? "Enter password" : "Введите пароль"} autoFocus
+            style={{ width: "100%", border: "1px solid #d7dfd8", borderRadius: 14, padding: "12px 14px", fontSize: 15, outline: "none", boxSizing: "border-box" }} />
+          {error && <div style={{ marginTop: 12, borderRadius: 12, background: "#fff3f3", border: "1px solid #f0d2d2", color: "#9a2e2e", padding: "10px 12px", fontSize: 14 }}>{error}</div>}
+          <div style={{ marginTop: 18, display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <button type="button" onClick={onClose} disabled={loading} className="secondary-button">{language === "en" ? "Cancel" : "Отмена"}</button>
+            <button type="submit" disabled={loading || !password.trim()} className="primary-button">
+              {loading ? (language === "en" ? "Checking..." : "Проверяем...") : (language === "en" ? "Login" : "Войти")}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── AppContent ───────────────────────────────────────────────────────────────
+
 function AppContent() {
   const { language, t } = useLanguage();
+  const h = HERO[language] || HERO.ru;
 
   const [countries, setCountries] = useState([]);
+  const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
   const [mugs, setMugs] = useState([]);
   const [people, setPeople] = useState([]);
 
-  const [hoveredCountryIso, setHoveredCountryIso] = useState("");
-  const [hoveredCountryLabel, setHoveredCountryLabel] = useState("");
+  const [selectedRegionCode, setSelectedRegionCode] = useState("");
   const [selectedCountryIso, setSelectedCountryIso] = useState("");
-  const [selectedCountryLabel, setSelectedCountryLabel] = useState("");
+  const [selectedStateCode, setSelectedStateCode] = useState("");
+  const [hoveredRegionCode, setHoveredRegionCode] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [fatalError, setFatalError] = useState("");
   const [warningMessage, setWarningMessage] = useState("");
-  const [currentView, setCurrentView] = useState("map");
+  const [currentView, setCurrentView] = useState("home");
+
+  const [mapPanelCountryIso, setMapPanelCountryIso] = useState("");
+
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [adminToken, setAdminToken] = useState("");
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [adminAuthLoading, setAdminAuthLoading] = useState(false);
+  const [adminAuthError, setAdminAuthError] = useState("");
+
+  // ── Load ──────────────────────────────────────────────────────────────────
 
   const tryLoadTable = useCallback(async (queryFn, retryQueryFn = null) => {
     const result = await queryFn();
-
-    if (!result.error) {
-      return result;
-    }
-
-    const shouldRetry =
-      retryQueryFn &&
-      /(column .* does not exist|undefined column|relation .* does not exist|таблица .* не существует|Нет столбца)/i.test(
-        String(result.error.message || "")
-      );
-
-    if (shouldRetry) {
-      return retryQueryFn();
-    }
-
-    return result;
+    if (!result.error) return result;
+    const errText = [result.error.message, result.error.details, result.error.hint, result.error.code].filter(Boolean).join(" ");
+    const shouldRetry = retryQueryFn && /(column .* does not exist|undefined column|relation .* does not exist|schema cache|pgrst204)/i.test(errText);
+    return shouldRetry ? retryQueryFn() : result;
   }, []);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
-    setFatalError("");
-    setWarningMessage("");
+    setLoading(true); setFatalError(""); setWarningMessage("");
+    const [countriesRes, mugsRes, peopleRes, citiesRes, statesRes] = await Promise.all([
+      tryLoadTable(
+        () => supabase.from("countries").select("id, iso2_code, name_en, name_ru, has_starbucks_current, is_visible").eq("is_visible", true).order("name_en", { ascending: true }),
+        () => supabase.from("countries").select("id, iso2_code, name_en, name_ru, has_starbucks_current").order("name_en", { ascending: true })
+      ),
+      tryLoadTable(
+        () => supabase.from("mugs").select(`id, collection_number, country_id, country_iso2, state_id, state_code, city_id, slug, title, city, city_key, mug_type, received_at, brought_by, brought_by_person_ids, brought_by_person_id, color_keys, collection_keys, note, cover_image_path, is_published, created_at, updated_at, mug_images (id, mug_id, storage_path, sort_order, alt_text, created_at)`).eq("is_published", true).order("received_at", { ascending: false }),
+        () => supabase.from("mugs").select(`id, collection_number, country_id, state_id, city_id, slug, title, city, city_key, mug_type, received_at, brought_by, brought_by_person_ids, brought_by_person_id, color_keys, collection_keys, note, cover_image_path, is_published, created_at, updated_at, mug_images (id, mug_id, storage_path, sort_order, alt_text, created_at)`).eq("is_published", true).order("received_at", { ascending: false })
+      ),
+      tryLoadTable(
+        () => supabase.from("people").select("id, first_name, last_name, bio, avatar_image_path, instagram_url, is_visible").eq("is_visible", true).order("first_name", { ascending: true }),
+        () => supabase.from("people").select("id, first_name, last_name, bio, avatar_image_path, instagram_url").order("first_name", { ascending: true })
+      ),
+      tryLoadTable(
+        () => supabase.from("cities").select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude, is_active, country_iso2, state_code, state_name_en, state_name_ru").eq("is_active", true).order("name_en", { ascending: true }),
+        () => supabase.from("cities").select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude").order("name_en", { ascending: true })
+      ),
+      tryLoadTable(
+        () => supabase.from("states").select("id, country_id, code, name_en, name_ru, is_active").eq("is_active", true).order("name_en", { ascending: true }),
+        () => supabase.from("states").select("id, country_id, code, name_en, name_ru").order("name_en", { ascending: true })
+      ),
+    ]);
 
-    const [countriesResult, mugsResult, peopleResult, citiesResult] =
-      await Promise.all([
-        tryLoadTable(
-          () =>
-            supabase
-              .from("countries")
-              .select(
-                "id, iso2_code, name_en, name_ru, has_starbucks_current, is_visible"
-              )
-              .eq("is_visible", true)
-              .order("name_en", { ascending: true }),
-          () =>
-            supabase
-              .from("countries")
-              .select("id, iso2_code, name_en, name_ru, has_starbucks_current")
-              .order("name_en", { ascending: true })
-        ),
-
-        tryLoadTable(
-          () =>
-            supabase
-              .from("mugs")
-              .select(`
-                id,
-                country_id,
-                city_id,
-                slug,
-                title,
-                city,
-                city_key,
-                mug_type,
-                received_at,
-                brought_by,
-                brought_by_person_ids,
-                brought_by_person_id,
-                color_keys,
-                collection_keys,
-                note,
-                cover_image_path,
-                is_published,
-                created_at,
-                updated_at,
-                mug_images (
-                  id,
-                  mug_id,
-                  storage_path,
-                  sort_order,
-                  alt_text,
-                  created_at
-                )
-              `)
-              .eq("is_published", true)
-              .order("received_at", { ascending: false }),
-          () =>
-            supabase
-              .from("mugs")
-              .select(`
-                id,
-                country_id,
-                slug,
-                title,
-                city,
-                mug_type,
-                received_at,
-                brought_by,
-                note,
-                cover_image_path,
-                is_published,
-                mug_images (
-                  id,
-                  mug_id,
-                  storage_path,
-                  sort_order,
-                  alt_text,
-                  created_at
-                )
-              `)
-              .eq("is_published", true)
-              .order("received_at", { ascending: false })
-        ),
-
-        tryLoadTable(
-          () =>
-            supabase
-              .from("people")
-              .select(
-                "id, first_name, last_name, bio, avatar_image_path, instagram_url, is_visible"
-              )
-              .eq("is_visible", true)
-              .order("first_name", { ascending: true }),
-          () =>
-            supabase
-              .from("people")
-              .select(
-                "id, first_name, last_name, bio, avatar_image_path, instagram_url"
-              )
-              .order("first_name", { ascending: true })
-        ),
-
-        tryLoadTable(
-          () =>
-            supabase
-              .from("cities")
-              .select(
-                "id, key, country_id, name_en, name_ru, latitude, longitude, is_active"
-              )
-              .eq("is_active", true)
-              .order("name_en", { ascending: true }),
-          () =>
-            supabase
-              .from("cities")
-              .select(
-                "id, key, country_id, name_en, name_ru, latitude, longitude"
-              )
-              .order("name_en", { ascending: true })
-        ),
-      ]);
-
-    if (countriesResult.error || mugsResult.error) {
-      setFatalError(
-        countriesResult.error?.message ||
-          mugsResult.error?.message ||
-          "Не удалось загрузить страны и кружки."
-      );
-      setCountries([]);
-      setMugs([]);
-      setPeople([]);
-      setCities([]);
-      setLoading(false);
-      return;
+    if (countriesRes.error || mugsRes.error) {
+      setFatalError(countriesRes.error?.message || mugsRes.error?.message || "Не удалось загрузить данные.");
+      setCountries([]); setStates([]); setMugs([]); setPeople([]); setCities([]);
+      setLoading(false); return;
     }
-
-    setCountries(countriesResult.data ?? []);
-    setMugs(mugsResult.data ?? []);
-    setPeople(peopleResult.error ? [] : peopleResult.data ?? []);
-    setCities(citiesResult.error ? [] : citiesResult.data ?? []);
-
+    setCountries(countriesRes.data ?? []);
+    setMugs(mugsRes.data ?? []);
+    setPeople((peopleRes.error ? [] : peopleRes.data ?? []).map(p => ({ ...p, is_visible: p.is_visible ?? true })));
+    setCities(citiesRes.error ? [] : citiesRes.data ?? []);
+    setStates(statesRes.error ? [] : statesRes.data ?? []);
     const warnings = [
-      peopleResult.error ? `People: ${peopleResult.error.message}` : null,
-      citiesResult.error ? `Cities: ${citiesResult.error.message}` : null,
+      peopleRes.error ? `People: ${peopleRes.error.message}` : null,
+      citiesRes.error ? `Cities: ${citiesRes.error.message}` : null,
+      statesRes.error ? `States: ${statesRes.error.message}` : null,
     ].filter(Boolean);
-
     setWarningMessage(warnings.join(" / "));
     setLoading(false);
   }, [tryLoadTable]);
 
   useEffect(() => {
     let cancelled = false;
-
     async function run() {
-      try {
-        await loadData();
-      } catch (unexpectedError) {
-        if (!cancelled) {
-          console.error("Unexpected data fetch error:", unexpectedError);
-          setFatalError(
-            unexpectedError?.message ||
-              "Не удалось загрузить данные. Пожалуйста, попробуйте позже."
-          );
-          setLoading(false);
-        }
-      }
+      try { await loadData(); }
+      catch (err) { if (!cancelled) { setFatalError(err?.message || "Ошибка загрузки."); setLoading(false); } }
     }
-
     run();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [loadData]);
 
-  const countriesByIso = useMemo(() => {
-    const map = new Map();
+  // ── Admin session ─────────────────────────────────────────────────────────
 
-    countries.forEach((country) => {
-      const iso = normalizeIso2(country.iso2_code);
-      if (iso) {
-        map.set(iso, country);
+  useEffect(() => {
+    let cancelled = false;
+    async function restore() {
+      const token = localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
+      if (!token) return;
+      try {
+        const { data, error } = await supabase.functions.invoke("admin-verify", { headers: { Authorization: `Bearer ${token}` } });
+        if (cancelled) return;
+        if (error || !data?.ok) { localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY); return; }
+        setAdminToken(token); setIsAdminAuthenticated(true);
+      } catch { if (!cancelled) localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY); }
+    }
+    restore();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    function handleKey(e) {
+      if (e.ctrlKey && e.shiftKey && String(e.key || "").toLowerCase() === "a") {
+        e.preventDefault();
+        if (!isAdminAuthenticated) { setAdminAuthError(""); setIsLoginOpen(true); }
       }
-    });
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [isAdminAuthenticated]);
 
-    return map;
+  useEffect(() => {
+    if (!isAdminAuthenticated && ADMIN_ONLY_VIEWS.has(currentView)) setCurrentView("home");
+  }, [currentView, isAdminAuthenticated]);
+
+  // ── Derived data ──────────────────────────────────────────────────────────
+
+  const countriesByIso = useMemo(() => {
+    const m = new Map(); countries.forEach(c => { const iso = normalizeIso2(c.iso2_code); if (iso) m.set(iso, c); }); return m;
   }, [countries]);
 
   const citiesById = useMemo(() => {
-    const map = new Map();
-
-    cities.forEach((city) => {
-      map.set(String(city.id), city);
-    });
-
-    return map;
+    const m = new Map(); cities.forEach(c => m.set(String(c.id), c)); return m;
   }, [cities]);
 
+  const statesById = useMemo(() => {
+    const m = new Map(); states.forEach(s => m.set(String(s.id), s)); return m;
+  }, [states]);
+
   const mugCountByCountryId = useMemo(() => {
-    const map = new Map();
-
-    mugs.forEach((mug) => {
-      const key = String(mug.country_id || "");
-      if (!key) return;
-      map.set(key, (map.get(key) ?? 0) + 1);
-    });
-
-    return map;
+    const m = new Map();
+    mugs.forEach(mug => { const k = String(mug.country_id || ""); if (k) m.set(k, (m.get(k) ?? 0) + 1); });
+    return m;
   }, [mugs]);
 
   const mugsByCountryId = useMemo(() => {
-    const map = new Map();
-
-    mugs.forEach((mug) => {
-      const key = String(mug.country_id || "");
-      if (!key) return;
-
-      const current = map.get(key) ?? [];
-      current.push(mug);
-      map.set(key, current);
-    });
-
-    return map;
+    const m = new Map();
+    mugs.forEach(mug => { const k = String(mug.country_id || ""); if (!k) return; const cur = m.get(k) ?? []; cur.push(mug); m.set(k, cur); });
+    return m;
   }, [mugs]);
 
-  const countriesWithMugsCount = useMemo(() => {
-    let count = 0;
+  const countriesWithMugsCount = useMemo(() => countries.filter(c => (mugCountByCountryId.get(String(c.id)) ?? 0) > 0).length, [countries, mugCountByCountryId]);
+  const countriesWithStarbucksCount = useMemo(() => countries.filter(c => !!c.has_starbucks_current).length, [countries]);
+  const visibleFriendsCount = useMemo(() => people.filter(p => p.is_visible).length, [people]);
 
-    countries.forEach((country) => {
-      const mugCount = mugCountByCountryId.get(String(country.id)) ?? 0;
-      if (mugCount > 0) {
-        count += 1;
-      }
-    });
+  const globeCountryData = useMemo(() => countries.map(country => ({
+    id: country.id,
+    code: normalizeIso2(country.iso2_code),
+    name: language === "en" ? (country.name_en || country.name_ru || "") : (country.name_ru || country.name_en || ""),
+    nameRu: country.name_ru || "", nameEn: country.name_en || "",
+    hasStarbucks: !!country.has_starbucks_current,
+    mugsCount: mugCountByCountryId.get(String(country.id)) ?? 0,
+  })), [countries, mugCountByCountryId, language]);
 
-    return count;
-  }, [countries, mugCountByCountryId]);
+  const panelCountryRecord = useMemo(() => mapPanelCountryIso ? countriesByIso.get(mapPanelCountryIso) ?? null : null, [countriesByIso, mapPanelCountryIso]);
+  const panelMugs = useMemo(() => panelCountryRecord ? mugsByCountryId.get(String(panelCountryRecord.id)) ?? [] : [], [panelCountryRecord, mugsByCountryId]);
 
-  const countriesWithStarbucksCount = useMemo(() => {
-    return countries.filter((country) => !!country.has_starbucks_current).length;
-  }, [countries]);
+  // ── Globe handlers ────────────────────────────────────────────────────────
 
-  const globeCountryData = useMemo(() => {
-    return countries.map((country) => ({
-      id: country.id,
-      code: normalizeIso2(country.iso2_code),
-      name:
-        language === "en"
-          ? country.name_en || country.name_ru || country.iso2_code || ""
-          : country.name_ru || country.name_en || country.iso2_code || "",
-      nameRu: country.name_ru || "",
-      nameEn: country.name_en || "",
-      hasStarbucks: !!country.has_starbucks_current,
-      mugsCount: mugCountByCountryId.get(String(country.id)) ?? 0,
-    }));
-  }, [countries, mugCountByCountryId, language]);
+  const handleCountryHover = useCallback((payload) => {
+    if (selectedRegionCode) return;
+    const { regionCode } = extractRegionPayload(payload);
+    setHoveredRegionCode(regionCode);
+  }, [selectedRegionCode]);
 
-  const visibleCountryIso = selectedCountryIso || hoveredCountryIso;
-  const visibleCountryLabel = selectedCountryLabel || hoveredCountryLabel;
+  const handleCountryClick = useCallback((payload) => {
+    const { regionCode, countryIso, stateCode } = extractRegionPayload(payload);
+    if (!regionCode) { setSelectedRegionCode(""); setSelectedCountryIso(""); setSelectedStateCode(""); setHoveredRegionCode(""); setMapPanelCountryIso(""); return; }
+    if (selectedRegionCode === regionCode) { setSelectedRegionCode(""); setSelectedCountryIso(""); setSelectedStateCode(""); setMapPanelCountryIso(""); return; }
+    setSelectedRegionCode(regionCode); setSelectedCountryIso(countryIso); setSelectedStateCode(stateCode);
+    setHoveredRegionCode(""); setMapPanelCountryIso(countryIso);
+    document.getElementById("catalog-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [selectedRegionCode]);
 
-  const activeCountryRecord = useMemo(() => {
-    if (!visibleCountryIso) return null;
-    return countriesByIso.get(visibleCountryIso) ?? null;
-  }, [countriesByIso, visibleCountryIso]);
-
-  const activeMugs = useMemo(() => {
-    if (!activeCountryRecord) return [];
-    return mugsByCountryId.get(String(activeCountryRecord.id)) ?? [];
-  }, [activeCountryRecord, mugsByCountryId]);
-
-  const peopleAdminLabel = language === "en" ? "People Admin" : "Люди: админка";
-
-  const handleCountryHover = useCallback(
-    (payload) => {
-      if (selectedCountryIso) {
-        return;
-      }
-
-      const { iso, label } = extractCountryPayload(payload);
-      setHoveredCountryIso(iso);
-      setHoveredCountryLabel(label);
-    },
-    [selectedCountryIso]
-  );
-
-  const handleCountryClick = useCallback(
-    (payload) => {
-      const { iso, label } = extractCountryPayload(payload);
-
-      if (!iso) {
-        setSelectedCountryIso("");
-        setSelectedCountryLabel("");
-        setHoveredCountryIso("");
-        setHoveredCountryLabel("");
-        return;
-      }
-
-      const isSameSelection = selectedCountryIso === iso;
-
-      if (isSameSelection) {
-        setSelectedCountryIso("");
-        setSelectedCountryLabel("");
-        return;
-      }
-
-      setSelectedCountryIso(iso);
-      setSelectedCountryLabel(label);
-      setHoveredCountryIso("");
-      setHoveredCountryLabel("");
-    },
-    [selectedCountryIso]
-  );
-
-  const clearSelectedCountry = useCallback(() => {
-    setSelectedCountryIso("");
-    setSelectedCountryLabel("");
-    setHoveredCountryIso("");
-    setHoveredCountryLabel("");
+  const clearSelection = useCallback(() => {
+    setSelectedRegionCode(""); setSelectedCountryIso(""); setSelectedStateCode("");
+    setHoveredRegionCode(""); setMapPanelCountryIso("");
   }, []);
 
-  const getCountryDisplayName = useCallback(
-    (country) => {
-      if (!country) return "—";
+  // ── Display helpers ───────────────────────────────────────────────────────
 
-      return language === "en"
-        ? country.name_en || country.name_ru || country.iso2_code || "—"
-        : country.name_ru || country.name_en || country.iso2_code || "—";
-    },
-    [language]
+  const getCountryDisplayName = useCallback((country) => {
+    if (!country) return "—";
+    return language === "en" ? (country.name_en || country.name_ru || country.iso2_code || "—") : (country.name_ru || country.name_en || country.iso2_code || "—");
+  }, [language]);
+
+  const getStateDisplayName = useCallback((mug) => {
+    const state = statesById.get(String(mug.state_id || ""));
+    if (!state) return "";
+    return language === "en" ? (state.name_en || state.name_ru || state.code || "") : (state.name_ru || state.name_en || state.code || "");
+  }, [statesById, language]);
+
+  const getMugCityText = useCallback((mug) => {
+    if (!mug) return "—";
+    const city = citiesById.get(String(mug.city_id || ""));
+    if (city) return language === "en" ? (city.name_en || city.name_ru || mug.city || "—") : (city.name_ru || city.name_en || mug.city || "—");
+    return mug.city || "—";
+  }, [citiesById, language]);
+
+  // ── Admin ──────────────────────────────────────────────────────────────────
+
+  async function handleAdminLogin(password) {
+    setAdminAuthLoading(true); setAdminAuthError("");
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-login", { body: { password } });
+      if (error || !data?.ok || !data?.token) { setAdminAuthError(language === "en" ? "Invalid password." : "Неверный пароль."); setAdminAuthLoading(false); return; }
+      localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, data.token);
+      setAdminToken(data.token); setIsAdminAuthenticated(true); setIsLoginOpen(false);
+    } catch { setAdminAuthError(language === "en" ? "Login failed." : "Ошибка входа."); }
+    setAdminAuthLoading(false);
+  }
+
+  function handleAdminLogout() {
+    localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    setAdminToken(""); setIsAdminAuthenticated(false);
+    if (ADMIN_ONLY_VIEWS.has(currentView)) setCurrentView("home");
+  }
+
+  async function openAdminView(viewName) {
+    if (!adminToken) { setCurrentView(viewName); return; }
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-verify", { headers: { Authorization: `Bearer ${adminToken}` } });
+      if (error || !data?.ok) { handleAdminLogout(); return; }
+      setCurrentView(viewName);
+    } catch { handleAdminLogout(); }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  const isAdminView = ADMIN_ONLY_VIEWS.has(currentView);
+
+  if (loading) return (
+    <div className="card"><div className="empty-state"><h2>{t("loadingTitle")}</h2><p>{t("loadingText")}</p></div></div>
   );
 
-  const getMugCityText = useCallback(
-    (mug) => {
-      if (!mug) return "—";
-
-      const city = citiesById.get(String(mug.city_id || ""));
-      if (city) {
-        return language === "en"
-          ? city.name_en || city.name_ru || mug.city || "—"
-          : city.name_ru || city.name_en || mug.city || "—";
-      }
-
-      return mug.city || "—";
-    },
-    [citiesById, language]
+  if (fatalError) return (
+    <div className="card"><div className="empty-state">
+      <h2>{t("errorTitle")}</h2><p>{fatalError}</p>
+      <button type="button" className="secondary-button" onClick={loadData} style={{ marginTop: 16 }}>{t("retry")}</button>
+    </div></div>
   );
-
-  const renderLoading = useCallback(() => {
-    return (
-      <div className="card">
-        <div className="empty-state">
-          <h2>{t("loadingTitle")}</h2>
-          <p>{t("loadingText")}</p>
-        </div>
-      </div>
-    );
-  }, [t]);
-
-  const renderError = useCallback(() => {
-    return (
-      <div className="card">
-        <div className="empty-state">
-          <h2>{t("errorTitle")}</h2>
-          <p>{fatalError || t("errorText")}</p>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={loadData}
-            style={{ marginTop: 16 }}
-          >
-            {t("retry")}
-          </button>
-        </div>
-      </div>
-    );
-  }, [fatalError, loadData, t]);
-
-  const warningBanner =
-    warningMessage && !loading && !fatalError ? (
-      <div
-        className="card"
-        style={{
-          padding: "14px 16px",
-          border: "1px solid #f3d5a3",
-          background: "#fff8ea",
-          color: "#7a4b00",
-          marginBottom: 16,
-        }}
-      >
-        {warningMessage}
-      </div>
-    ) : null;
-
-  const isAdminView =
-    currentView === "countries" ||
-    currentView === "mugs" ||
-    currentView === "people-admin";
 
   return (
     <div className="page">
-      <header className="hero hero-with-language">
-        <div className="hero-language-switch">
+
+      {/* ── Navbar ── */}
+      <nav style={{
+        position: "sticky", top: 0, zIndex: 100,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 24px", height: 52,
+        background: "#fff", borderBottom: "0.5px solid #e8e2d9",
+      }}>
+        <button type="button" onClick={() => setCurrentView("home")} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#1f6f54", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M18.5 3h-13C4.7 3 4 3.7 4 4.5v1c0 .4.2.8.5 1L6 8v9c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V8l1.5-1.5c.3-.2.5-.6.5-1v-1C20 3.7 19.3 3 18.5 3zm-2.5 5v9H8V8h8zm2-2.5L16.5 7h-9L6 5.5v-.5h12v.5z"/></svg>
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "#153126" }}>
+            Khodar <span style={{ color: "#1f6f54" }}>Starbucks</span> Collection
+          </span>
+        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <LanguageSwitch />
+          {isAdminAuthenticated && (
+            <>
+              <span style={{ display: "inline-flex", alignItems: "center", borderRadius: 999, padding: "5px 10px", background: "#dff4e7", color: "#0d6f48", fontWeight: 600, fontSize: 12 }}>
+                {language === "en" ? "Admin" : "Режим администратора"}
+              </span>
+              <button type="button" className="secondary-button" onClick={handleAdminLogout} style={{ fontSize: 13 }}>
+                {language === "en" ? "Logout" : "Выйти"}
+              </button>
+            </>
+          )}
         </div>
+      </nav>
 
-        <div className="hero-main-content">
-          <p className="eyebrow">Khodar Starbucks Collection</p>
-          <h1>{t("heroTitle")}</h1>
-          <p className="hero-text">{t("heroText")}</p>
-        </div>
+      <AdminLoginModal isOpen={isLoginOpen} language={language} loading={adminAuthLoading} error={adminAuthError}
+        onClose={() => { if (!adminAuthLoading) { setAdminAuthError(""); setIsLoginOpen(false); } }}
+        onSubmit={handleAdminLogin} />
 
-        <div className="stats">
-          <div className="stat">
-            <span className="stat-value">{mugs.length}</span>
-            <span className="stat-label">{t("publishedMugs")}</span>
+      {/* ── Admin views ── */}
+      {isAdminAuthenticated && isAdminView ? (
+        <>
+          <div style={{ display: "flex", gap: 4, padding: "8px 24px", background: "#f8f4ed", borderBottom: "0.5px solid #e8e2d9" }}>
+            {[
+              { key: "countries", labelRu: "Страны", labelEn: "Countries" },
+              { key: "mugs", labelRu: "Кружки", labelEn: "Mugs" },
+              { key: "people", labelRu: "Люди", labelEn: "People" },
+              { key: "people-admin", labelRu: "Люди: админка", labelEn: "People Admin" },
+            ].map(item => (
+              <button key={item.key} type="button" onClick={() => openAdminView(item.key)} style={{
+                padding: "6px 14px", border: "none", borderRadius: 8,
+                background: currentView === item.key ? "#1f6f54" : "transparent",
+                color: currentView === item.key ? "#fff" : "#374151",
+                fontSize: 13, fontWeight: 500, cursor: "pointer",
+              }}>
+                {language === "en" ? item.labelEn : item.labelRu}
+              </button>
+            ))}
+            <button type="button" onClick={() => setCurrentView("home")} style={{ marginLeft: "auto", padding: "6px 14px", border: "0.5px solid #e2ddd4", borderRadius: 8, background: "transparent", color: "#374151", fontSize: 13, cursor: "pointer" }}>
+              {language === "en" ? "← Back to site" : "← На сайт"}
+            </button>
           </div>
-
-          <div className="stat">
-            <span className="stat-value">{countriesWithStarbucksCount}</span>
-            <span className="stat-label">{t("countriesWithStarbucks")}</span>
-          </div>
-
-          <div className="stat">
-            <span className="stat-value">{countriesWithMugsCount}</span>
-            <span className="stat-label">{t("countriesWithMugs")}</span>
-          </div>
-        </div>
-
-        <div className="legend">
-          <div className="legend-item">
-            <span className="legend-dot legend-dot-gray" />
-            <span>{t("legendNoStarbucks")}</span>
-          </div>
-
-          <div className="legend-item">
-            <span className="legend-dot legend-dot-light" />
-            <span>{t("legendStarbucksNoMugs")}</span>
-          </div>
-
-          <div className="legend-item">
-            <span className="legend-dot legend-dot-green" />
-            <span>{t("legendHasMugs")}</span>
-          </div>
-        </div>
-
-        <div className="view-switch">
-          <button
-            className={
-              currentView === "map"
-                ? "view-switch-button active"
-                : "view-switch-button"
-            }
-            onClick={() => setCurrentView("map")}
-            type="button"
-          >
-            {t("map")}
-          </button>
-
-          <button
-            className={
-              currentView === "catalog"
-                ? "view-switch-button active"
-                : "view-switch-button"
-            }
-            onClick={() => setCurrentView("catalog")}
-            type="button"
-          >
-            {t("catalog")}
-          </button>
-
-          <button
-            className={
-              currentView === "people"
-                ? "view-switch-button active"
-                : "view-switch-button"
-            }
-            onClick={() => setCurrentView("people")}
-            type="button"
-          >
-            {t("people")}
-          </button>
-
-          <button
-            className={
-              currentView === "countries"
-                ? "view-switch-button active"
-                : "view-switch-button"
-            }
-            onClick={() => setCurrentView("countries")}
-            type="button"
-          >
-            {t("countries")}
-          </button>
-
-          <button
-            className={
-              currentView === "mugs"
-                ? "view-switch-button active"
-                : "view-switch-button"
-            }
-            onClick={() => setCurrentView("mugs")}
-            type="button"
-          >
-            {t("mugs")}
-          </button>
-
-          <button
-            className={
-              currentView === "people-admin"
-                ? "view-switch-button active"
-                : "view-switch-button"
-            }
-            onClick={() => setCurrentView("people-admin")}
-            type="button"
-          >
-            {peopleAdminLabel}
-          </button>
-        </div>
-      </header>
-
-      {isAdminView ? (
-        currentView === "countries" ? (
-          <CountriesAdmin onChanged={loadData} />
-        ) : currentView === "mugs" ? (
-          <MugsAdmin onChanged={loadData} />
-        ) : (
-          <PeopleAdmin onChanged={loadData} />
-        )
-      ) : loading ? (
-        renderLoading()
-      ) : fatalError ? (
-        renderError()
+          {currentView === "countries" && <CountriesAdmin onChanged={loadData} />}
+          {currentView === "mugs" && <MugsAdmin onChanged={loadData} language={language} />}
+          {currentView === "people" && <PeopleVisualization mugs={mugs} countries={countries} cities={cities} people={people} />}
+          {currentView === "people-admin" && <PeopleAdmin onChanged={loadData} />}
+        </>
       ) : (
         <>
-          {warningBanner}
+          {warningMessage && (
+            <div style={{ padding: "10px 24px", background: "#fff8ea", borderBottom: "1px solid #f3d5a3", color: "#7a4b00", fontSize: 13 }}>{warningMessage}</div>
+          )}
 
-          <div style={{ display: currentView === "map" ? "block" : "none" }}>
-            <main className="layout">
-              <section className="card map-card">
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "12px",
-                    flexWrap: "wrap",
-                    marginBottom: "12px",
-                  }}
-                >
-                  <div className="section-title">{t("globe3d")}</div>
-                </div>
+          {/* ── Hero ── */}
+          <section style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2fr)",
+            background: "#fff",
+            borderBottom: "0.5px solid #e8e2d9",
+          }}>
 
-                <div
-                  style={{
-                    position: "relative",
-                    minHeight: 560,
-                    height: "min(70vh, 760px)",
-                    width: "100%",
-                    overflow: "hidden",
-                    borderRadius: "24px",
-                    background: "#efe7dc",
-                  }}
-                >
-                  <div style={{ position: "absolute", inset: 0 }}>
-                    <GlobeMapAsync
-                      countryData={globeCountryData}
-                      selectedCountryCode={selectedCountryIso}
-                      hoveredCountryCode={
-                        selectedCountryIso ? "" : hoveredCountryIso
-                      }
-                      onCountryHover={handleCountryHover}
-                      onCountryClick={handleCountryClick}
-                      isActive={currentView === "map"}
-                    />
+            {/* Left — info 1/3 */}
+            <div style={{ padding: "40px 32px 40px 28px", display: "flex", flexDirection: "column", gap: 24, borderRight: "0.5px solid #e8e2d9" }}>
+
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, color: "#1f6f54", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+                  {h.eyebrow}
+                </p>
+                <h1 style={{ fontSize: 24, fontWeight: 700, color: "#153126", lineHeight: 1.3, marginBottom: 14, whiteSpace: "pre-line" }}>
+                  {h.title}
+                </h1>
+                <p style={{ fontSize: 13, color: "#5f6f66", lineHeight: 1.7 }}>
+                  {h.text}
+                </p>
+              </div>
+
+              {/* Stats — redesigned with context */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+                {/* Mugs count */}
+                <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 32, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{mugs.length}</span>
+                    <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat1label}</span>
                   </div>
                 </div>
-              </section>
 
-              <aside className="card side-card">
-                {!visibleCountryLabel ? (
-                  <div className="empty-state">
-                    <h2>{t("hoverCountryTitle")}</h2>
-                    <p>{t("hoverCountryText")}</p>
+                {/* Countries progress */}
+                <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
+                    <span style={{ fontSize: 32, fontWeight: 700, color: "#1f6f54", lineHeight: 1 }}>{countriesWithMugsCount}</span>
+                    <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat2label(countriesWithMugsCount, countriesWithStarbucksCount)}</span>
                   </div>
-                ) : !activeCountryRecord ? (
-                  <div className="empty-state">
-                    <h2>{visibleCountryLabel}</h2>
-                    <p>{t("countryNotMatched")}</p>
+                  {/* Progress bar */}
+                  <div style={{ height: 5, borderRadius: 999, background: "#e8e2d9", overflow: "hidden" }}>
+                    <div style={{
+                      height: "100%", borderRadius: 999, background: "#1f6f54",
+                      width: `${Math.round((countriesWithMugsCount / Math.max(countriesWithStarbucksCount, 1)) * 100)}%`,
+                      transition: "width 0.6s ease",
+                    }} />
                   </div>
-                ) : (
-                  <>
-                    <div className="section-title">
-                      {getCountryDisplayName(activeCountryRecord)}
-                    </div>
+                  <div style={{ marginTop: 5, fontSize: 11, color: "#8a9e96" }}>
+                    {h.stat2sub(countriesWithStarbucksCount - countriesWithMugsCount)}
+                  </div>
+                </div>
 
-                    <div className="country-panel-actions">
-                      {selectedCountryLabel ? (
-                        <>
-                          <span className="selection-badge">
-                            {t("selectedCountry")}
-                          </span>
+                {/* Friends */}
+                <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <span style={{ fontSize: 32, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{visibleFriendsCount}</span>
+                    <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat3label}</span>
+                  </div>
+                  <div style={{ marginTop: 4, fontSize: 11, color: "#8a9e96" }}>{h.stat3sub}</div>
+                </div>
+              </div>
 
-                          <button
-                            className="secondary-button"
-                            onClick={clearSelectedCountry}
-                            type="button"
-                          >
-                            {t("clearSelection")}
-                          </button>
-                        </>
-                      ) : (
-                        <span className="selection-hint">{t("hoverHint")}</span>
-                      )}
-                    </div>
+              {/* Admin pills */}
+              {isAdminAuthenticated && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {[
+                    { key: "countries", labelRu: "Страны", labelEn: "Countries" },
+                    { key: "mugs", labelRu: "Кружки", labelEn: "Mugs" },
+                    { key: "people", labelRu: "Люди", labelEn: "People" },
+                    { key: "people-admin", labelRu: "Люди: админка", labelEn: "People Admin" },
+                  ].map(item => (
+                    <button key={item.key} type="button" onClick={() => openAdminView(item.key)} style={{
+                      padding: "5px 12px", border: "0.5px solid #1f6f54", borderRadius: 999,
+                      background: "transparent", color: "#1f6f54", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    }}>
+                      {language === "en" ? item.labelEn : item.labelRu}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-                    <div className="country-status-block">
-                      <div className="status-row">
-                        <span className="status-label">{t("iso")}:</span>
-                        <span className="status-value">
-                          {activeCountryRecord.iso2_code || "—"}
-                        </span>
-                      </div>
+            {/* Right: legend + globe 2/3 — no border-radius, flush edges */}
+            <div style={{ display: "flex", flexDirection: "column" }}>
 
-                      <div className="status-row">
-                        <span className="status-label">{t("starbucks")}:</span>
-                        <span
-                          className={
-                            activeCountryRecord.has_starbucks_current
-                              ? "status-badge status-badge-light"
-                              : "status-badge status-badge-gray"
-                          }
-                        >
-                          {activeCountryRecord.has_starbucks_current
-                            ? t("yes")
-                            : t("no")}
-                        </span>
-                      </div>
+              {/* Legend bar */}
+              <div style={{
+                display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center",
+                padding: "10px 16px",
+                background: "#faf7f3", borderBottom: "0.5px solid #e8e2d9",
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#8a9e96", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {h.legendTitle}
+                </span>
+                {[
+                  { color: "#E8E1D7", border: "0.5px solid #ccc", label: h.l1 },
+                  { color: "#B7D7C2", label: h.l2 },
+                  { color: "#2F7D57", label: h.l3 },
+                ].map((item, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#5f6f66" }}>
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: item.color, border: item.border || "none", flexShrink: 0 }} />
+                    {item.label}
+                  </div>
+                ))}
+              </div>
 
-                      <div className="status-row">
-                        <span className="status-label">
-                          {t("mugsInCollection")}:
-                        </span>
-                        <span className="status-value">{activeMugs.length}</span>
-                      </div>
-                    </div>
+              {/* Globe — fills remaining height, no border-radius */}
+              <div style={{ flex: 1, position: "relative", minHeight: 504, overflow: "hidden" }}>
+                <div style={{ position: "absolute", inset: 0 }}>
+                  <GlobeMapAsync
+                    countryData={globeCountryData}
+                    selectedCountryCode={selectedRegionCode}
+                    selectedRegionCode={selectedRegionCode}
+                    hoveredCountryCode={selectedRegionCode ? "" : hoveredRegionCode}
+                    hoveredRegionCode={selectedRegionCode ? "" : hoveredRegionCode}
+                    onCountryHover={handleCountryHover}
+                    onCountryClick={handleCountryClick}
+                    isActive={true}
+                    language={language}
+                  />
+                </div>
 
-                    {activeMugs.length === 0 ? (
-                      <div className="empty-state">
-                        {activeCountryRecord.has_starbucks_current ? (
-                          <p>{t("noMugsButStarbucks")}</p>
-                        ) : (
-                          <p>{t("noStarbucksNow")}</p>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="side-scroll-area">
-                        <div className="mug-list">
-                          {activeMugs.map((mug) => (
-                            <article className="mug-card" key={mug.id}>
-                              <MugCarousel
-                                images={mug.mug_images || []}
-                                fallbackAlt={mug.title}
-                              />
-
-                              <div className="mug-content">
-                                <h3>{mug.title}</h3>
-
-                                <p>
-                                  <strong>{t("city")}:</strong>{" "}
-                                  {getMugCityText(mug)}
-                                </p>
-
-                                <p>
-                                  <strong>{t("type")}:</strong>{" "}
-                                  {mug.mug_type || "—"}
-                                </p>
-
-                                <p>
-                                  <strong>{t("receivedAt")}:</strong>{" "}
-                                  {formatDate(mug.received_at)}
-                                </p>
-
-                                <p>
-                                  <strong>{t("broughtBy")}:</strong>{" "}
-                                  {mug.brought_by || "—"}
-                                </p>
-
-                                <p>
-                                  <strong>{t("note")}:</strong>{" "}
-                                  {mug.note || "—"}
-                                </p>
-                              </div>
-                            </article>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
+                {/* Hint */}
+                {!selectedRegionCode && (
+                  <div style={{
+                    position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)",
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "5px 12px", borderRadius: 999,
+                    background: "rgba(255,255,255,0.88)",
+                    fontSize: 12, color: "#5f6f66", whiteSpace: "nowrap", pointerEvents: "none",
+                  }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#1f6f54" }} />
+                    {h.hint}
+                  </div>
                 )}
-              </aside>
-            </main>
-          </div>
 
-          <div style={{ display: currentView === "catalog" ? "block" : "none" }}>
+                {/* Selected country badge */}
+                {selectedRegionCode && panelCountryRecord && (
+                  <div style={{
+                    position: "absolute", top: 14, left: 14,
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "8px 14px", borderRadius: 12,
+                    background: "rgba(255,255,255,0.92)",
+                    border: "0.5px solid #e8e2d9",
+                    fontSize: 13, color: "#153126", fontWeight: 600,
+                  }}>
+                    {getCountryDisplayName(panelCountryRecord)}
+                    <span style={{ color: "#1f6f54", fontWeight: 700 }}>
+                      {panelMugs.length} {h.mugsLabel}
+                    </span>
+                    <button type="button" onClick={clearSelection} style={{ background: "none", border: "none", fontSize: 16, color: "#9ca3af", cursor: "pointer", padding: 0, lineHeight: 1 }}>×</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* ── Catalog ── */}
+          <div id="catalog-section">
             <CatalogPage
               mugs={mugs}
               countries={countries}
+              states={states}
               cities={cities}
               people={people}
               selectedCountryIso={selectedCountryIso}
-              selectedCountryLabel={selectedCountryLabel}
+              selectedStateCode={selectedStateCode}
+              selectedCountryLabel={panelCountryRecord ? getCountryDisplayName(panelCountryRecord) : ""}
               language={language}
-            />
-          </div>
-
-          <div style={{ display: currentView === "people" ? "block" : "none" }}>
-            <PeopleVisualization
-              mugs={mugs}
-              countries={countries}
-              cities={cities}
-              people={people}
+              isAdmin={isAdminAuthenticated}
+              onMugChanged={loadData}
             />
           </div>
         </>

@@ -1,0 +1,27 @@
+{
+  "participants": [
+    {
+      "name": "\u00e5\u00b1\u00b1\u00e5\u00b4\u008e\u00e3\u0081\u008f\u00e3\u0082\u008b\u00e3\u0081\u00bf"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "\u00e5\u00b1\u00b1\u00e5\u00b4\u008e\u00e3\u0081\u008f\u00e3\u0082\u008b\u00e3\u0081\u00bf",
+      "timestamp_ms": 1712649020260,
+      "share": {
+        "original_content_owner": "starbucks_j"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "\u00e5\u00b1\u00b1\u00e5\u00b4\u008e\u00e3\u0081\u008f\u00e3\u0082\u008b\u00e3\u0081\u00bf",
+  "is_still_participant": true,
+  "thread_path": "inbox/shanqikurumi_17859436902118317",
+  "magic_words": [
+    
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "participants": [
+    {
+      "name": "KostKa"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "KostKa",
+      "timestamp_ms": 1727206423996,
+      "content": "\u00f0\u009f\u0094\u00a5",
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3464001045634539548"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "KostKa",
+      "timestamp_ms": 1724950713965,
+      "content": "Reacted \u00f0\u009f\u0091\u008d to your message ",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1724941018776,
+      "content": "\u00d0\u0094\u00d0\u00b0, \u00d0\u00b2 \u00d0\u00be\u00d1\u0082\u00d0\u00bf\u00d1\u0083\u00d1\u0081\u00d0\u00ba \u00d0\u00bf\u00d0\u00be\u00d0\u00b5\u00d1\u0085\u00d0\u00b0\u00d0\u00bb \u00d1\u0081 \u00d0\u00b4\u00d1\u0080\u00d1\u0083\u00d0\u00b7\u00d1\u008c\u00d1\u008f\u00d0\u00bc\u00d0\u00b8",
+      "reactions": [
+        {
+          "reaction": "\u00f0\u009f\u0091\u008d",
+          "actor": "KostKa",
+          "timestamp": 1724950713
+        }
+      ],
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "KostKa",
+      "timestamp_ms": 1724877424967,
+      "content": "\u00d0\u00a2\u00d1\u008b \u00d0\u00b0 \u00d0\u009a\u00d0\u00b8\u00d1\u0082\u00d0\u00b0\u00d0\u00b5?",
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3444694758008521473"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "KostKa",
+      "timestamp_ms": 1724877338154,
+      "content": "\u00f0\u009f\u0091\u008f",
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3444692472154591202"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "KostKa",
+      "timestamp_ms": 1705744950967,
+      "content": "\u00f0\u009f\u0094\u00a5",
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3283968961164666239"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "KostKa",
+  "is_still_participant": true,
+  "thread_path": "inbox/kostka_1284651556262881",
+  "magic_words": [
+    
+  ]
+}

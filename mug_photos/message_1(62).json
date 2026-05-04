@@ -1,0 +1,154 @@
+{
+  "participants": [
+    {
+      "name": "starbucks addict"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1712154145503,
+      "content": "What is your name?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1712154117386,
+      "content": "I like Turkey \u00f0\u009f\u00a5\u00b0",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "starbucks addict",
+      "timestamp_ms": 1712138184520,
+      "content": "I wish I can go to Europe someday",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "starbucks addict",
+      "timestamp_ms": 1712137969367,
+      "content": "No, I havent gone to Europe, but I  have gone to Turkey",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1712079189456,
+      "content": "And you? Have you been in Europe?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1712079167362,
+      "content": "I have a plans. In August have a trip to China",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "starbucks addict",
+      "timestamp_ms": 1712072420155,
+      "content": "So you never gone to Asia?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "starbucks addict",
+      "timestamp_ms": 1712072395341,
+      "content": "I dont know how far from Maldives to Indonesia",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1712058424483,
+      "content": "No. The farthest I've been from home is the Maldives. And Indonesia is a few hours more by plane. I suppose",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1712058321823,
+      "content": "Wow",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "starbucks addict",
+      "timestamp_ms": 1712020803253,
+      "content": "Have you been here?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "starbucks addict",
+      "timestamp_ms": 1712020788041,
+      "content": "I'm from Indonesia",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1711998803606,
+      "content": "And you?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1711998799662,
+      "content": "I'm from Belarus",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "starbucks addict",
+      "timestamp_ms": 1711963300722,
+      "content": "\u00f0\u009f\u0098\u0082",
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3336080635568714748"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "starbucks addict",
+      "timestamp_ms": 1711963270491,
+      "content": "Where are you from?",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "starbucks addict",
+      "timestamp_ms": 1711963246960,
+      "content": "Your collection too",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "starbucks addict",
+      "timestamp_ms": 1711963233708,
+      "content": "Hi\u00f0\u009f\u0091\u008b",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1711909268541,
+      "content": "Amazing collection",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "starbucks addict",
+  "is_still_participant": true,
+  "thread_path": "inbox/starbucksaddict_1378569963540064",
+  "magic_words": [
+    
+  ]
+}

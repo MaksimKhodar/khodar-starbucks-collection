@@ -1,0 +1,34 @@
+{
+  "participants": [
+    {
+      "name": "Anastasiya"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Anastasiya",
+      "timestamp_ms": 1703194614906,
+      "content": "\u00d0\u00af \u00d0\u00bf\u00d1\u0080\u00d0\u00be\u00d1\u0081\u00d1\u0082 2 \u00d0\u00bd\u00d0\u00b5\u00d0\u00b4\u00d0\u00b5\u00d0\u00bb\u00d0\u00b8 \u00d0\u00be\u00d1\u0082\u00d0\u00b4\u00d1\u008b\u00d1\u0085\u00d0\u00b0\u00d0\u00bb\u00d0\u00b0 \u00d0\u00bd\u00d0\u00b0 \u00d0\u00b1\u00d0\u00be\u00d0\u00bb\u00d1\u008c\u00d0\u00bd\u00d0\u00b8\u00d1\u0087\u00d0\u00bd\u00d0\u00be\u00d0\u00bc)) \n\u00d0\u009d\u00d0\u00be \u00d0\u00b2\u00d0\u00be\u00d0\u00be\u00d0\u00b1\u00d1\u0089\u00d0\u00b5 \u00d0\u00bf\u00d1\u0080\u00d0\u00b0\u00d0\u00b2\u00d0\u00b4\u00d0\u00b0 \u00d0\u00ba\u00d0\u00be\u00d0\u00bd\u00d0\u00b5\u00d1\u0087\u00d0\u00bd\u00d0\u00be",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1703193762868,
+      "share": {
+        "original_content_owner": "karolinanowakowskaofficial"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Anastasiya",
+  "is_still_participant": true,
+  "thread_path": "inbox/anastasiya_1309962293732631",
+  "magic_words": [
+    
+  ]
+}

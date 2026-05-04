@@ -1,0 +1,26 @@
+{
+  "participants": [
+    {
+      "name": "Instagram User"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Instagram User",
+      "timestamp_ms": 1747056458343,
+      "content": "I am kelly, a 30-year-old woman who likes traveling, fitness, food, dating and being single. Do you believe in online love and friendship? What kind of relationship do you think can build a trusting relationship? I am looking for a friend who can share spiritual topics with me. If you have a different view on friendship, you can leave me a message. I hope this will be a good start. Please add me on WhatsApp: https://wa.me/+12132189812",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Instagram User",
+  "is_still_participant": true,
+  "thread_path": "message_requests/instagramuser_17842933827488065",
+  "magic_words": [
+    
+  ],
+  "is_pending": true
+}

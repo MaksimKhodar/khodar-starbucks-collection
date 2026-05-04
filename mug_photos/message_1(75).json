@@ -1,0 +1,46 @@
+{
+  "participants": [
+    {
+      "name": "Jonathan Mu\u00c3\u00b1oz"
+    },
+    {
+      "name": "Maksim Khodar"
+    },
+    {
+      "name": "Christine Mullaney"
+    },
+    {
+      "name": "Instagram User"
+    },
+    {
+      "name": "Lisa \u00f0\u009f\u0091\u00bb\u00f0\u009f\u0091\u00bb"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Ahmet Ba\u00c5\u009fkan",
+      "timestamp_ms": 1719840334922,
+      "content": "Ahmet Ba\u00c5\u009fkan left the group.",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Instagram User",
+      "timestamp_ms": 1719840153954,
+      "content": "Good news, I am the Recruitment Manager of Booking*com. We are recruiting part-time online members worldwide. You only need to work 2 hours online every day in your spare time, and the daily salary is (100-800) euros. If you work online for 15 consecutive days, the daily salary is (1500-3000) euros. Note: (This position is not suitable for students under 22 years old. Sorry, African and Indian countries are temporarily unable to receive rewards and wages due to regional payment reasons) For more details, please click on the WhatsaPP link: https://bit.ly/3zqqsNN",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Jonathan Mu\u00c3\u00b1oz, Christine Mullaney, Instagram User and Lisa \u00f0\u009f\u0091\u00bb\u00f0\u009f\u0091\u00bb",
+  "is_still_participant": true,
+  "thread_path": "message_requests/jonathanmunozchristinemullaneyinstagramuserandlisa_25940641602248430",
+  "magic_words": [
+    
+  ],
+  "joinable_mode": {
+    "mode": 1,
+    "link": ""
+  },
+  "is_pending": true
+}

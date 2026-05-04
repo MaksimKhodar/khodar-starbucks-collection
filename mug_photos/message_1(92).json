@@ -1,0 +1,35 @@
+{
+  "participants": [
+    {
+      "name": "leyataleya"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1724822220477,
+      "content": "\u00d0\u0096\u00d0\u00b5\u00d0\u00bd\u00d0\u00b0 \u00d0\u00b1\u00d0\u00be\u00d1\u008f\u00d0\u00bb\u00d0\u00b0\u00d1\u0081\u00d1\u008c \u00d1\u0087\u00d1\u0082\u00d0\u00be \u00d1\u0082\u00d0\u00b0\u00d0\u00ba \u00d0\u00b8 \u00d0\u00b1\u00d1\u0083\u00d0\u00b4\u00d0\u00b5\u00d1\u0082",
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "leyataleya",
+      "timestamp_ms": 1724752261938,
+      "content": "\u00d0\u00bd\u00d0\u00b0\u00d0\u00b4\u00d0\u00be \u00d0\u00b1\u00d1\u008b\u00d0\u00bb\u00d0\u00be \u00d1\u0087\u00d0\u00b5\u00d0\u00bc\u00d0\u00be\u00d0\u00b4\u00d0\u00b0\u00d0\u00bd \u00d0\u00b4\u00d0\u00bb\u00d1\u008f \u00d1\u0081\u00d1\u0082\u00d0\u00b0\u00d1\u0080\u00d0\u00b1\u00d0\u00b0\u00d0\u00ba\u00d1\u0081\u00d0\u00b0 \u00d0\u00b1\u00d1\u0080\u00d0\u00b0\u00d1\u0082\u00d1\u008c. \u00d0\u00b8\u00d0\u00bb\u00d0\u00b8 \u00d0\u00bf\u00d0\u00be\u00d1\u0087\u00d1\u0082\u00d0\u00be\u00d0\u00b9 \u00d0\u00b2 \u00d1\u0080\u00d0\u00b1 \u00d0\u00be\u00d1\u0082\u00d0\u00bf\u00d1\u0080\u00d0\u00b0\u00d0\u00b2\u00d0\u00b8\u00d1\u0082\u00d1\u008c)))",
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3443529005735653968"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "leyataleya",
+  "is_still_participant": true,
+  "thread_path": "inbox/leyataleya_1443600350365953",
+  "magic_words": [
+    
+  ]
+}

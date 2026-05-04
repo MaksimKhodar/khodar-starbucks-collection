@@ -1,4 +1,4 @@
-import React, {
+import {
   memo,
   useCallback,
   useEffect,
@@ -19,9 +19,16 @@ const COLORS = {
   globe: "#EFE7DC",
 };
 
-const GEOJSON_SOURCES = [
+// Countries GeoJSON — all countries except USA
+const COUNTRIES_GEOJSON_SOURCES = [
   "/data/ne_110m_admin_0_countries.geojson",
   "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson",
+];
+
+// US States GeoJSON — only US states
+const US_STATES_GEOJSON_SOURCES = [
+  "/maps/ne_110m_admin_1_states_provinces.geojson",
+  "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_1_states_provinces.geojson",
 ];
 
 let worldGeoJsonCache = null;
@@ -35,7 +42,7 @@ function normalizeName(value) {
     .toLowerCase()
     .trim()
     .replace(/&/g, "and")
-    .replace(/[’']/g, "")
+    .replace(/['']/g, "")
     .replace(/\(.*?\)/g, "")
     .replace(/[^a-zа-яё0-9]+/gi, " ")
     .replace(/\s+/g, " ")
@@ -44,6 +51,18 @@ function normalizeName(value) {
 
 function getFeatureCode(feature) {
   const p = feature?.properties || {};
+  // For US states: use postal code like "CA", "NY"
+  const postal = p.postal || p.iso_3166_2 || p.code_hasc || "";
+  if (feature?._isUsState) {
+    // Extract 2-letter state code
+    if (postal) {
+      // postal might be "US-CA" or just "CA"
+      const code = postal.includes("-") ? postal.split("-")[1] : postal;
+      return `US-${normalizeCode(code)}`;
+    }
+    return "";
+  }
+
   const iso2 =
     p.ISO_A2 || p.iso_a2 || p.WB_A2 || p.iso2 || p.ISO2 || feature?.id;
 
@@ -55,6 +74,10 @@ function getFeatureCode(feature) {
 }
 
 function getFeatureName(feature) {
+  if (feature?._isUsState) {
+    const p = feature?.properties || {};
+    return p.name || p.NAME || p.gn_name || "Unknown state";
+  }
   const p = feature?.properties || {};
   return (
     p.ADMIN ||
@@ -69,30 +92,54 @@ function getFeatureName(feature) {
   );
 }
 
-async function loadWorldGeoJson() {
+async function loadGeoJson(sources) {
   let lastError = null;
-
-  for (const url of GEOJSON_SOURCES) {
+  for (const url of sources) {
     try {
       const response = await fetch(url, { cache: "force-cache" });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const json = await response.json();
-
-      if (json?.features?.length) {
-        return json;
-      }
-
+      if (json?.features?.length) return json;
       throw new Error("GeoJSON is empty");
     } catch (error) {
       lastError = error;
     }
   }
+  throw lastError || new Error("Failed to load GeoJSON");
+}
 
-  throw lastError || new Error("Не удалось загрузить GeoJSON мира");
+async function loadMergedGeoJson() {
+  // Load countries and US states in parallel
+  const [countriesJson, statesJson] = await Promise.all([
+    loadGeoJson(COUNTRIES_GEOJSON_SOURCES),
+    loadGeoJson(US_STATES_GEOJSON_SOURCES).catch(() => null),
+  ]);
+
+  // Filter out USA from countries
+  const countryFeatures = countriesJson.features.filter((f) => {
+    const p = f?.properties || {};
+    const iso2 =
+      p.ISO_A2 || p.iso_a2 || p.WB_A2 || p.iso2 || p.ISO2 || f?.id || "";
+    return normalizeCode(iso2) !== "US";
+  });
+
+  // Extract only US state features and tag them
+  const usStateFeatures = statesJson
+    ? statesJson.features
+        .filter((f) => {
+          const p = f?.properties || {};
+          // Filter to only US states using admin field or iso code
+          const admin = (p.admin || p.admin0_a3 || "").toUpperCase();
+          const hasc = (p.code_hasc || "").toUpperCase();
+          return admin === "UNITED STATES OF AMERICA" || hasc.startsWith("US.");
+        })
+        .map((f) => ({ ...f, _isUsState: true }))
+    : [];
+
+  return {
+    type: "FeatureCollection",
+    features: [...countryFeatures, ...usStateFeatures],
+  };
 }
 
 function buildCountryIndexes(countryData) {
@@ -101,7 +148,8 @@ function buildCountryIndexes(countryData) {
 
   (countryData || []).forEach((item) => {
     const code = normalizeCode(
-      item.code || item.iso2_code || item.iso2 || item.country_code
+      item.code || item.iso2_code || item.iso2 || item.country_code ||
+      item.regionCode || ""
     );
 
     const names = [
@@ -121,9 +169,7 @@ function buildCountryIndexes(countryData) {
     }
 
     names.forEach((name) => {
-      if (name) {
-        byName.set(name, item);
-      }
+      if (name) byName.set(name, item);
     });
   });
 
@@ -133,6 +179,15 @@ function buildCountryIndexes(countryData) {
 function resolveCountryRecord(feature, indexes) {
   const code = getFeatureCode(feature);
   const name = getFeatureName(feature);
+
+  // US states must match by code only — never by name
+  // This prevents "Georgia" state matching "Georgia" country
+  if (feature?._isUsState) {
+    if (code && indexes.byCode.has(code)) {
+      return indexes.byCode.get(code);
+    }
+    return null;
+  }
 
   if (code && indexes.byCode.has(code)) {
     return indexes.byCode.get(code);
@@ -148,21 +203,13 @@ function resolveCountryRecord(feature, indexes) {
 
 function getCountryState(record) {
   if (!record) {
-    return {
-      hasStarbucks: false,
-      mugsCount: 0,
-      hasMugs: false,
-    };
+    return { hasStarbucks: false, mugsCount: 0, hasMugs: false };
   }
-
   const mugsCount = Number(record.mugsCount ?? record.mugs ?? 0);
-  const hasMugs = mugsCount > 0;
-  const hasStarbucks = !!record.hasStarbucks;
-
   return {
-    hasStarbucks,
+    hasStarbucks: !!record.hasStarbucks,
     mugsCount,
-    hasMugs,
+    hasMugs: mugsCount > 0,
   };
 }
 
@@ -201,72 +248,52 @@ function GlobeMap({
 
   useEffect(() => {
     if (!containerRef.current) return;
-
     const element = containerRef.current;
-
     const updateSize = () => {
       const rect = element.getBoundingClientRect();
-
-      const nextWidth = Math.max(320, Math.round(rect.width || 0));
-      const nextHeight = Math.max(420, Math.round(rect.height || 0));
-
+      const dpr = window.devicePixelRatio || 1;
+      const nextWidth = Math.max(320, Math.round(rect.width * dpr || 0));
+      const nextHeight = Math.max(420, Math.round(rect.height * dpr || 0));
       setSize((prev) => {
-        if (prev.width === nextWidth && prev.height === nextHeight) {
-          return prev;
-        }
-
-        return {
-          width: nextWidth,
-          height: nextHeight,
-        };
+        if (prev.width === nextWidth && prev.height === nextHeight) return prev;
+        return { width: nextWidth, height: nextHeight };
       });
     };
-
     updateSize();
-
     const observer = new ResizeObserver(updateSize);
     observer.observe(element);
-
     return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-
-    loadWorldGeoJson()
+    loadMergedGeoJson()
       .then((json) => {
         if (cancelled) return;
+        worldGeoJsonCache = json;
         setWorldGeoJson(json);
         setShowLoader(false);
       })
       .catch((error) => {
         if (cancelled) return;
-
         console.error("[GlobeMap] GeoJSON load error:", error);
         setGeoError(
           "Не удалось загрузить границы стран для 3D-глобуса. Проверьте файл GeoJSON."
         );
         setShowLoader(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const canRenderGlobe =
     size.width > 0 && size.height > 0 && polygonsData.length > 0;
 
   useEffect(() => {
-    if (!canRenderGlobe || !globeRef.current || didInitViewRef.current) {
-      return;
-    }
-
+    if (!canRenderGlobe || !globeRef.current || didInitViewRef.current) return;
     const rafId = requestAnimationFrame(() => {
       try {
         const globe = globeRef.current;
         const controls = globe?.controls?.();
-
         if (controls) {
           controls.enableDamping = true;
           controls.dampingFactor = 0.08;
@@ -276,31 +303,19 @@ function GlobeMap({
           controls.minDistance = 130;
           controls.maxDistance = 420;
         }
-
-        globe?.pointOfView(
-          {
-            lat: 18,
-            lng: 15,
-            altitude: 1.9,
-          },
-          0
-        );
-
+        globe?.pointOfView({ lat: 18, lng: 15, altitude: 1.6 }, 0);
         didInitViewRef.current = true;
       } catch (error) {
         console.error("[GlobeMap] setup error:", error);
       }
     });
-
     return () => cancelAnimationFrame(rafId);
   }, [canRenderGlobe]);
 
   const handleGlobeReady = useCallback(() => {
     const globe = globeRef.current;
     if (!globe) return;
-
     const controls = globe.controls?.();
-
     if (controls) {
       controls.enableDamping = true;
       controls.dampingFactor = 0.08;
@@ -310,16 +325,7 @@ function GlobeMap({
       controls.minDistance = 130;
       controls.maxDistance = 420;
     }
-
-    globe.pointOfView(
-      {
-        lat: 18,
-        lng: 15,
-        altitude: 1.9,
-      },
-      0
-    );
-
+    globe.pointOfView({ lat: 18, lng: 15, altitude: 1.6 }, 0);
     setShowLoader(false);
   }, []);
 
@@ -327,7 +333,8 @@ function GlobeMap({
     (feature) => {
       const record = resolveCountryRecord(feature, countryIndexes);
       const resolvedCode = normalizeCode(
-        record?.code || record?.iso2_code || getFeatureCode(feature) || ""
+        record?.code || record?.regionCode || record?.iso2_code ||
+        getFeatureCode(feature) || ""
       );
 
       if (
@@ -338,7 +345,6 @@ function GlobeMap({
       }
 
       const { hasStarbucks, hasMugs } = getCountryState(record);
-
       if (hasMugs) return COLORS.mugs;
       if (hasStarbucks) return COLORS.starbucksOnly;
       return COLORS.empty;
@@ -350,24 +356,17 @@ function GlobeMap({
     (feature) => {
       const record = resolveCountryRecord(feature, countryIndexes);
       const resolvedCode = normalizeCode(
-        record?.code || record?.iso2_code || getFeatureCode(feature) || ""
+        record?.code || record?.regionCode || record?.iso2_code ||
+        getFeatureCode(feature) || ""
       );
 
-      if (
-        resolvedCode &&
-        resolvedCode === normalizeCode(selectedCountryCode || "")
-      ) {
+      if (resolvedCode && resolvedCode === normalizeCode(selectedCountryCode || "")) {
         return 0.03;
       }
-
-      if (
-        resolvedCode &&
-        resolvedCode === normalizeCode(hoveredCountryCode || "")
-      ) {
+      if (resolvedCode && resolvedCode === normalizeCode(hoveredCountryCode || "")) {
         return 0.016;
       }
-
-      return 0.008;
+      return feature?._isUsState ? 0.006 : 0.008;
     },
     [countryIndexes, selectedCountryCode, hoveredCountryCode]
   );
@@ -386,14 +385,19 @@ function GlobeMap({
         fallbackName;
 
       const code =
-        record?.code || record?.iso2_code || getFeatureCode(feature) || "—";
+        record?.regionCode ||
+        record?.code ||
+        record?.iso2_code ||
+        getFeatureCode(feature) ||
+        "—";
 
       const { hasStarbucks, mugsCount } = getCountryState(record);
+      const isState = feature?._isUsState;
 
       return `
         <div style="padding:8px 10px;background:#ffffff;border-radius:10px;color:#1f2937;box-shadow:0 8px 24px rgba(0,0,0,0.12);font-size:13px;line-height:1.45;">
-          <div style="font-weight:700;margin-bottom:4px;">${name}</div>
-          <div>ISO: ${code}</div>
+          <div style="font-weight:700;margin-bottom:4px;">${name}${isState ? " (США)" : ""}</div>
+          <div>${isState ? "Штат" : "ISO"}: ${code}</div>
           <div>Starbucks: ${hasStarbucks ? "есть" : "нет"}</div>
           <div>Кружек: ${mugsCount}</div>
         </div>
@@ -405,15 +409,14 @@ function GlobeMap({
   const handlePolygonHover = useCallback(
     (feature) => {
       if (!onCountryHover) return;
-
       if (!feature) {
         onCountryHover("", "");
         return;
       }
-
       const record = resolveCountryRecord(feature, countryIndexes);
       const code = normalizeCode(
-        record?.code || record?.iso2_code || getFeatureCode(feature) || ""
+        record?.regionCode || record?.code || record?.iso2_code ||
+        getFeatureCode(feature) || ""
       );
       const name =
         record?.nameRu ||
@@ -431,10 +434,10 @@ function GlobeMap({
   const handlePolygonClick = useCallback(
     (feature) => {
       if (!onCountryClick || !feature) return;
-
       const record = resolveCountryRecord(feature, countryIndexes);
       const code = normalizeCode(
-        record?.code || record?.iso2_code || getFeatureCode(feature) || ""
+        record?.regionCode || record?.code || record?.iso2_code ||
+        getFeatureCode(feature) || ""
       );
       const name =
         record?.nameRu ||
@@ -449,6 +452,12 @@ function GlobeMap({
     [countryIndexes, onCountryClick]
   );
 
+  // US states need thinner stroke for visual clarity
+  const polygonStrokeColor = useCallback(
+    (feature) => feature?._isUsState ? "rgba(255,255,255,0.6)" : COLORS.stroke,
+    []
+  );
+
   return (
     <div
       ref={containerRef}
@@ -460,9 +469,7 @@ function GlobeMap({
         pointerEvents: isActive ? "auto" : "none",
         transition: "opacity 220ms ease",
         overflow: "hidden",
-        background:
-          "radial-gradient(circle at center, #f7f2ea 0%, #efe7dc 100%)",
-        borderRadius: "24px",
+        background: "radial-gradient(circle at center, #f7f2ea 0%, #efe7dc 100%)",
       }}
     >
       {!geoError && canRenderGlobe && (
@@ -477,6 +484,7 @@ function GlobeMap({
             antialias: true,
             alpha: true,
             powerPreference: "high-performance",
+            pixelRatio: typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
           }}
           globeMaterial={globeMaterial}
           onGlobeReady={handleGlobeReady}
@@ -486,7 +494,7 @@ function GlobeMap({
           polygonsData={polygonsData}
           polygonCapColor={polygonCapColor}
           polygonSideColor={() => COLORS.side}
-          polygonStrokeColor={() => COLORS.stroke}
+          polygonStrokeColor={polygonStrokeColor}
           polygonAltitude={polygonAltitude}
           polygonCapCurvatureResolution={3}
           polygonsTransitionDuration={0}
@@ -504,8 +512,7 @@ function GlobeMap({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background:
-              "radial-gradient(circle at center, #f7f2ea 0%, #efe7dc 100%)",
+            background: "radial-gradient(circle at center, #f7f2ea 0%, #efe7dc 100%)",
             zIndex: 5,
           }}
         >
@@ -546,8 +553,7 @@ function GlobeMap({
             padding: 24,
             textAlign: "center",
             color: "#6b4f3a",
-            background:
-              "radial-gradient(circle at center, #f7f2ea 0%, #efe7dc 100%)",
+            background: "radial-gradient(circle at center, #f7f2ea 0%, #efe7dc 100%)",
             zIndex: 6,
           }}
         >

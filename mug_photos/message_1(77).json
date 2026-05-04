@@ -1,0 +1,40 @@
+{
+  "participants": [
+    {
+      "name": "Kasia"
+    },
+    {
+      "name": "Maksim Khodar"
+    }
+  ],
+  "messages": [
+    {
+      "sender_name": "Kasia",
+      "timestamp_ms": 1711824667040,
+      "reactions": [
+        {
+          "reaction": "\u00e2\u009d\u00a4",
+          "actor": "Maksim Khodar",
+          "timestamp": 1711824724
+        }
+      ],
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    },
+    {
+      "sender_name": "Maksim Khodar",
+      "timestamp_ms": 1711796311009,
+      "share": {
+        "link": "https://www.instagram.com/stories/khodar_starbucks_collection/3335111364311103171"
+      },
+      "is_geoblocked_for_viewer": false,
+      "is_unsent_image_by_messenger_kid_parent": false
+    }
+  ],
+  "title": "Kasia",
+  "is_still_participant": true,
+  "thread_path": "inbox/kasia_1377679163631854",
+  "magic_words": [
+    
+  ]
+}
