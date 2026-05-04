@@ -323,9 +323,10 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
         country:countries (id, iso2_code, name_en, name_ru)
       `).order("collection_number", { ascending: false, nullsFirst: false }),
       supabase.from("cities")
-        .select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude, is_active")
+        .select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude, is_active, country_iso2, state_code")
         .eq("is_active", true)
-        .order("name_en", { ascending: true }),
+        .order("name_en", { ascending: true })
+        .limit(10000),
       supabase.from("states")
         .select("id, country_id, code, name_en, name_ru, is_active")
         .eq("is_active", true)
@@ -457,6 +458,7 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
       .filter(c => String(c.country_id || "") === cid)
       .filter(c => sid ? String(c.state_id || "") === sid : true)
       .map(c => mapDbCityToOption(c, iso));
+
 
     const localOpts = localCityOptions.filter(c =>
       c.countryId === cid && (sid ? String(c.stateId || "") === sid : true)
@@ -643,15 +645,15 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
     setIsCreatingCity(true); setCityCreateError("");
 
     const citySlug = slugify(newCityName.trim());
-    const cityKey = [currentCountryIso || form.country_id || "xx", form.state_id || "na", citySlug || "city"]
-      .filter(Boolean).join("-");
+    const cityKey = [currentCountryIso || "xx", form.state_id || "na", citySlug || "city"].filter(Boolean).join("-");
     const payload = {
-      key: cityKey,
-      country_id: Number(form.country_id),
-      state_id: form.state_id ? Number(form.state_id) : null,
+      country_id: form.country_id,
+      state_id: form.state_id || null,
       name_en: newCityName.trim(),
       name_ru: newCityName.trim(),
       latitude: null, longitude: null, is_active: true,
+      country_iso2: currentCountryIso || null,
+      state_code: form.state_id ? (states.find(s => String(s.id) === String(form.state_id))?.code || null) : null,
     };
 
     const { data: cityData, error: cityError } = await supabase
@@ -675,7 +677,7 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
       if (cityError.code === "23505") {
         let q = supabase.from("cities")
           .select("id, key, country_id, state_id, name_en, name_ru")
-          .eq("key", cityKey).eq("country_id", Number(form.country_id));
+          .eq("key", cityKey).eq("country_id", form.country_id);
         q = form.state_id ? q.eq("state_id", Number(form.state_id)) : q.is("state_id", null);
         const { data: existing } = await q.single();
         if (existing) {

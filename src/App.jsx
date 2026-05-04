@@ -6,13 +6,13 @@ import MugsAdmin from "./components/MugsAdmin";
 import MugCarousel from "./components/MugCarousel";
 import GlobeMapAsync from "./components/GlobeMapAsync";
 import CatalogPage from "./components/CatalogPage";
-import PeopleVisualization from "./components/PeopleVisualization";
-import PeopleAdmin from "./components/PeopleAdmin";
+import PeoplePage from "./components/PeoplePage";
+
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { normalizeIso2, formatDate } from "./lib/utils";
 
 const ADMIN_TOKEN_STORAGE_KEY = "khodar_admin_token";
-const ADMIN_ONLY_VIEWS = new Set(["people", "countries", "mugs", "people-admin"]);
+const ADMIN_ONLY_VIEWS = new Set(["people", "countries", "mugs"]);
 
 // ─── Hero text ────────────────────────────────────────────────────────────────
 // Based on real captions: trips, friends who remembered, broken mugs that stay,
@@ -59,11 +59,11 @@ function extractRegionPayload(payload) {
   if (typeof payload === "object") {
     const regionCode = String(payload.regionCode || payload.code || payload.iso || payload.countryCode || "").trim().toUpperCase();
     const countryIso = normalizeIso2(payload.countryIso || payload.countryCode || payload.country_iso2 || (regionCode.startsWith("US-") ? "US" : regionCode));
-    const stateCode = String(payload.stateCode || payload.state_code || (regionCode.startsWith("US-") ? regionCode.slice(3, 5) : "")).trim().toUpperCase();
+    const stateCode = String(payload.stateCode || payload.state_code || (regionCode.startsWith("US-") ? regionCode : "")).trim().toUpperCase();
     return { regionCode, countryIso, stateCode, label: payload.name || payload.label || "" };
   }
   const regionCode = String(payload || "").trim().toUpperCase();
-  return { regionCode, countryIso: regionCode.startsWith("US-") ? "US" : normalizeIso2(regionCode), stateCode: regionCode.startsWith("US-") ? regionCode.slice(3, 5) : "", label: "" };
+  return { regionCode, countryIso: regionCode.startsWith("US-") ? "US" : normalizeIso2(regionCode), stateCode: regionCode.startsWith("US-") ? regionCode : "", label: "" };
 }
 
 // ─── LanguageSwitch ───────────────────────────────────────────────────────────
@@ -170,8 +170,8 @@ function AppContent() {
         () => supabase.from("people").select("id, first_name, last_name, bio, avatar_image_path, instagram_url").order("first_name", { ascending: true })
       ),
       tryLoadTable(
-        () => supabase.from("cities").select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude, is_active, country_iso2, state_code, state_name_en, state_name_ru").eq("is_active", true).order("name_en", { ascending: true }),
-        () => supabase.from("cities").select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude").order("name_en", { ascending: true })
+        () => supabase.from("cities").select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude, is_active, country_iso2, state_code, state_name_en, state_name_ru").eq("is_active", true).order("name_en", { ascending: true }).limit(10000),
+        () => supabase.from("cities").select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude").order("name_en", { ascending: true }).limit(10000)
       ),
       tryLoadTable(
         () => supabase.from("states").select("id, country_id, code, name_en, name_ru, is_active").eq("is_active", true).order("name_en", { ascending: true }),
@@ -271,14 +271,42 @@ function AppContent() {
   const countriesWithStarbucksCount = useMemo(() => countries.filter(c => !!c.has_starbucks_current).length, [countries]);
   const visibleFriendsCount = useMemo(() => people.filter(p => p.is_visible).length, [people]);
 
-  const globeCountryData = useMemo(() => countries.map(country => ({
-    id: country.id,
-    code: normalizeIso2(country.iso2_code),
-    name: language === "en" ? (country.name_en || country.name_ru || "") : (country.name_ru || country.name_en || ""),
-    nameRu: country.name_ru || "", nameEn: country.name_en || "",
-    hasStarbucks: !!country.has_starbucks_current,
-    mugsCount: mugCountByCountryId.get(String(country.id)) ?? 0,
-  })), [countries, mugCountByCountryId, language]);
+  // Count mugs per US state
+  const mugCountByStateCode = useMemo(() => {
+    const m = new Map();
+    mugs.forEach(mug => {
+      const code = String(mug.state_code || "").trim().toUpperCase();
+      if (code.startsWith("US-")) m.set(code, (m.get(code) ?? 0) + 1);
+    });
+    return m;
+  }, [mugs]);
+
+  const globeCountryData = useMemo(() => {
+    const countryEntries = countries.map(country => ({
+      id: country.id,
+      code: normalizeIso2(country.iso2_code),
+      name: language === "en" ? (country.name_en || country.name_ru || "") : (country.name_ru || country.name_en || ""),
+      nameRu: country.name_ru || "", nameEn: country.name_en || "",
+      hasStarbucks: !!country.has_starbucks_current,
+      mugsCount: mugCountByCountryId.get(String(country.id)) ?? 0,
+    }));
+
+    // Add US state entries so the globe can color them individually
+    const usCountry = countries.find(c => normalizeIso2(c.iso2_code) === "US");
+    const stateEntries = states
+      .filter(s => String(s.code || "").startsWith("US-"))
+      .map(s => ({
+        id: s.id,
+        code: s.code.toUpperCase(),
+        regionCode: s.code.toUpperCase(),
+        name: language === "en" ? (s.name_en || s.name_ru || "") : (s.name_ru || s.name_en || ""),
+        nameRu: s.name_ru || "", nameEn: s.name_en || "",
+        hasStarbucks: !!usCountry?.has_starbucks_current,
+        mugsCount: mugCountByStateCode.get(s.code.toUpperCase()) ?? 0,
+      }));
+
+    return [...countryEntries, ...stateEntries];
+  }, [countries, states, mugCountByCountryId, mugCountByStateCode, language]);
 
   const panelCountryRecord = useMemo(() => mapPanelCountryIso ? countriesByIso.get(mapPanelCountryIso) ?? null : null, [countriesByIso, mapPanelCountryIso]);
   const panelMugs = useMemo(() => panelCountryRecord ? mugsByCountryId.get(String(panelCountryRecord.id)) ?? [] : [], [panelCountryRecord, mugsByCountryId]);
@@ -413,7 +441,6 @@ function AppContent() {
               { key: "countries", labelRu: "Страны", labelEn: "Countries" },
               { key: "mugs", labelRu: "Кружки", labelEn: "Mugs" },
               { key: "people", labelRu: "Люди", labelEn: "People" },
-              { key: "people-admin", labelRu: "Люди: админка", labelEn: "People Admin" },
             ].map(item => (
               <button key={item.key} type="button" onClick={() => openAdminView(item.key)} style={{
                 padding: "6px 14px", border: "none", borderRadius: 8,
@@ -430,8 +457,7 @@ function AppContent() {
           </div>
           {currentView === "countries" && <CountriesAdmin onChanged={loadData} />}
           {currentView === "mugs" && <MugsAdmin onChanged={loadData} language={language} />}
-          {currentView === "people" && <PeopleVisualization mugs={mugs} countries={countries} cities={cities} people={people} />}
-          {currentView === "people-admin" && <PeopleAdmin onChanged={loadData} />}
+          {currentView === "people" && <PeoplePage mugs={mugs} countries={countries} language={language} isAdmin={isAdminAuthenticated} />}
         </>
       ) : (
         <>
@@ -509,7 +535,6 @@ function AppContent() {
                     { key: "countries", labelRu: "Страны", labelEn: "Countries" },
                     { key: "mugs", labelRu: "Кружки", labelEn: "Mugs" },
                     { key: "people", labelRu: "Люди", labelEn: "People" },
-                    { key: "people-admin", labelRu: "Люди: админка", labelEn: "People Admin" },
                   ].map(item => (
                     <button key={item.key} type="button" onClick={() => openAdminView(item.key)} style={{
                       padding: "5px 12px", border: "0.5px solid #1f6f54", borderRadius: 999,
