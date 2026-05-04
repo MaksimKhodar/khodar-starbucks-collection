@@ -154,6 +154,15 @@ function AppContent() {
     return shouldRetry ? retryQueryFn() : result;
   }, []);
 
+  const updateMug = useCallback(async (mugId) => {
+    const { data } = await supabase
+      .from("mugs")
+      .select(`id, collection_number, country_id, country_iso2, state_id, state_code, city_id, slug, title, city, city_key, mug_type, received_at, brought_by, brought_by_person_ids, brought_by_person_id, color_keys, collection_keys, note, cover_image_path, is_published, created_at, updated_at, mug_images (id, mug_id, storage_path, sort_order, alt_text, created_at)`)
+      .eq("id", mugId)
+      .single();
+    if (data) setMugs(prev => prev.map(m => m.id === mugId ? data : m));
+  }, []);
+
   const loadData = useCallback(async () => {
     setLoading(true); setFatalError(""); setWarningMessage("");
     const [countriesRes, mugsRes, peopleRes, citiesRes, statesRes] = await Promise.all([
@@ -636,7 +645,7 @@ function AppContent() {
               selectedCountryLabel={panelCountryRecord ? getCountryDisplayName(panelCountryRecord) : ""}
               language={language}
               isAdmin={isAdminAuthenticated}
-              onMugChanged={loadData}
+              onMugChanged={updateMug}
             />
           </div>
         </>

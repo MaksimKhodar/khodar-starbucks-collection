@@ -15,19 +15,18 @@ const COLOR_OPTIONS = [
   { key: "silver", label: { ru: "Серебристый", en: "Silver" }, swatch: "#9ca3af" },
   { key: "gray", label: { ru: "Серый", en: "Gray" }, swatch: "#6b7280" },
   { key: "multicolor", label: { ru: "Многоцветный", en: "Multicolor" }, swatch: "linear-gradient(135deg, #ef4444 0%, #eab308 25%, #22c55e 50%, #3b82f6 75%, #a855f7 100%)" },
+  { key: "other", label: { ru: "Другое", en: "Other" }, swatch: "#ffffff" },
 ];
 
 const COLLECTION_OPTIONS = [
-  { key: "been-there", label: { ru: "Been There", en: "Been There" }, category: "series" },
-  { key: "discovery", label: { ru: "Discovery", en: "Discovery" }, category: "series" },
   { key: "you-are-here", label: { ru: "You Are Here", en: "You Are Here" }, category: "series" },
-  { key: "city-series", label: { ru: "Городская серия", en: "City Series" }, category: "series" },
   { key: "country-series", label: { ru: "Серия стран", en: "Country Series" }, category: "series" },
+  { key: "city-series", label: { ru: "Городская серия", en: "City Series" }, category: "series" },
+  { key: "new-year", label: { ru: "Новый год", en: "New Year" }, category: "seasonal" },
+  { key: "christmas", label: { ru: "Рождество", en: "Christmas" }, category: "seasonal" },
   { key: "reserve", label: { ru: "Reserve", en: "Reserve" }, category: "series" },
   { key: "disney", label: { ru: "Disney Parks", en: "Disney Parks" }, category: "collab" },
   { key: "anniversary", label: { ru: "Юбилейная", en: "Anniversary" }, category: "special" },
-  { key: "new-year", label: { ru: "Новый год", en: "New Year" }, category: "seasonal" },
-  { key: "christmas", label: { ru: "Рождество", en: "Christmas" }, category: "seasonal" },
   { key: "winter", label: { ru: "Зимняя", en: "Winter" }, category: "seasonal" },
   { key: "spring", label: { ru: "Весенняя", en: "Spring" }, category: "seasonal" },
   { key: "summer", label: { ru: "Летняя", en: "Summer" }, category: "seasonal" },

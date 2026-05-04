@@ -474,6 +474,8 @@ function CatalogPage({
   const [collectionFilter, setCollectionFilter] = useState(EMPTY_VALUE);
   const [colorFilter, setColorFilter] = useState(EMPTY_VALUE);
   const [sortMode, setSortMode] = useState("numberDesc");
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
 
   useEffect(() => { if (initialCountryId) setCountryFilter(initialCountryId); }, [initialCountryId]);
   useEffect(() => { if (initialStateId) setStateFilter(initialStateId); }, [initialStateId]);
@@ -605,8 +607,14 @@ function CatalogPage({
       });
   }, [mugs, searchQuery, countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter, sortMode, countriesById, statesById, citiesById, language]);
 
-  function handleCountryChange(v) { setCountryFilter(v); setStateFilter(EMPTY_VALUE); setCityFilter(EMPTY_VALUE); }
-  function handleStateChange(v) { setStateFilter(v); setCityFilter(EMPTY_VALUE); }
+  const totalPages = Math.max(1, Math.ceil(filteredMugs.length / perPage));
+  const pagedMugs = useMemo(() => {
+    const start = (page - 1) * perPage;
+    return filteredMugs.slice(start, start + perPage);
+  }, [filteredMugs, page, perPage]);
+
+  function handleCountryChange(v) { setCountryFilter(v); setStateFilter(EMPTY_VALUE); setCityFilter(EMPTY_VALUE); setPage(1); }
+  function handleStateChange(v) { setStateFilter(v); setCityFilter(EMPTY_VALUE); setPage(1); }
 
   function resetFilters() {
     setSearchQuery(""); setCountryFilter(EMPTY_VALUE); setStateFilter(EMPTY_VALUE);
@@ -659,6 +667,7 @@ function CatalogPage({
   );
 
   return (
+    <>
     <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "240px 1fr", minHeight: 600, background: "#faf7f3" }}>
 
       {/* ── Desktop sidebar ── */}
@@ -794,7 +803,7 @@ function CatalogPage({
         )}
 
         {/* Grid */}
-        {filteredMugs.length === 0 ? (
+            {filteredMugs.length === 0 ? (
           <div style={{ padding: 48, textAlign: "center" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>☕</div>
             <h2 style={{ fontSize: 18, color: "#153126", marginBottom: 8 }}>{ui.noResultsTitle}</h2>
@@ -812,7 +821,7 @@ function CatalogPage({
             gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
             gap: 14, padding: 16,
           }}>
-            {filteredMugs.map(mug => {
+            {pagedMugs.map(mug => {
               const country = countriesById.get(String(mug.country_id || ""));
               const state = statesById.get(String(mug.state_id || ""));
               return (
@@ -875,16 +884,106 @@ function CatalogPage({
         ))}
       </MobileFilterSheet>
 
+    </div>{/* end grid */}
+
+      {/* Pagination */}
+      {filteredMugs.length > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "16px 20px", borderTop: "0.5px solid #e8e2d9",
+          background: "#fff", flexWrap: "wrap", gap: 12,
+        }}>
+          {/* Per page selector */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#5f6f66" }}>
+            <span>Показывать по</span>
+            {[20, 50, 100].map(n => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => { setPerPage(n); setPage(1); }}
+                style={{
+                  padding: "4px 10px", border: "0.5px solid",
+                  borderColor: perPage === n ? "#1f6f54" : "#e2ddd4",
+                  borderRadius: 6, background: perPage === n ? "#e8f5ee" : "transparent",
+                  color: perPage === n ? "#1a6340" : "#374151",
+                  fontSize: 13, fontWeight: perPage === n ? 600 : 400, cursor: "pointer",
+                }}
+              >{n}</button>
+            ))}
+          </div>
+
+          {/* Page info + navigation */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 13, color: "#5f6f66" }}>
+              {(page - 1) * perPage + 1}–{Math.min(page * perPage, filteredMugs.length)} из {filteredMugs.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              style={{
+                width: 32, height: 32, border: "0.5px solid #e2ddd4", borderRadius: 8,
+                background: "transparent", cursor: page === 1 ? "not-allowed" : "pointer",
+                color: page === 1 ? "#ccc" : "#374151", fontSize: 16, display: "flex",
+                alignItems: "center", justifyContent: "center",
+              }}
+            >‹</button>
+
+            {/* Page numbers */}
+            <div style={{ display: "flex", gap: 4 }}>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                .reduce((acc, p, i, arr) => {
+                  if (i > 0 && p - arr[i - 1] > 1) acc.push("...");
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, i) => p === "..." ? (
+                  <span key={`dot-${i}`} style={{ padding: "4px 2px", fontSize: 13, color: "#8a9e96" }}>…</span>
+                ) : (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPage(p)}
+                    style={{
+                      width: 32, height: 32, border: "0.5px solid",
+                      borderColor: page === p ? "#1f6f54" : "#e2ddd4",
+                      borderRadius: 8,
+                      background: page === p ? "#1f6f54" : "transparent",
+                      color: page === p ? "#fff" : "#374151",
+                      fontSize: 13, fontWeight: page === p ? 600 : 400,
+                      cursor: "pointer",
+                    }}
+                  >{p}</button>
+                ))
+              }
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              style={{
+                width: 32, height: 32, border: "0.5px solid #e2ddd4", borderRadius: 8,
+                background: "transparent", cursor: page === totalPages ? "not-allowed" : "pointer",
+                color: page === totalPages ? "#ccc" : "#374151", fontSize: 16, display: "flex",
+                alignItems: "center", justifyContent: "center",
+              }}
+            >›</button>
+          </div>
+        </div>
+      )}
+
       {/* Admin inline edit drawer */}
       {isAdmin && editingMug && (
         <MugEditDrawer
           mugId={editingMug.id}
           language={language}
           onClose={() => setEditingMug(null)}
-          onChanged={() => { setEditingMug(null); onMugChanged?.(); }}
+          onChanged={() => { onMugChanged?.(editingMug?.id); setEditingMug(null); }}
         />
       )}
-    </div>
+    </>
   );
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { uploadMugImage } from "../lib/storage";
 import ImageCropper from "./ImageCropper";
+import { MugEditDrawer } from "./MugsAdmin";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -59,6 +60,7 @@ function Avatar({ person, size = 80 }) {
 
 function PersonModal({ person, mugs, countries, language, isAdmin, onClose, onSaved, onDeleted }) {
   const [mode, setMode] = useState("view"); // "view" | "edit"
+  const [editingMugId, setEditingMugId] = useState(null);
   const [form, setForm] = useState({ ...person });
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
@@ -136,6 +138,7 @@ function PersonModal({ person, mugs, countries, language, isAdmin, onClose, onSa
   }
 
   return (
+    <>
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 500, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{
         background: "#fff", borderRadius: 20, width: "100%", maxWidth: 560,
@@ -185,13 +188,24 @@ function PersonModal({ person, mugs, countries, language, isAdmin, onClose, onSa
             {personMugs.length > 0 && (
               <div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "#31443a", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
-                  Кружки
+                  Кружки {isAdmin && <span style={{ fontSize: 10, fontWeight: 400, color: "#8a9e96", textTransform: "none" }}>— нажми чтобы редактировать</span>}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 8 }}>
                   {personMugs.map(mug => {
                     const img = mug.mug_images?.[0];
                     return (
-                      <div key={mug.id} style={{ borderRadius: 8, overflow: "hidden", background: "#f5f0e8" }}>
+                      <div
+                        key={mug.id}
+                        onClick={() => isAdmin && setEditingMugId(mug.id)}
+                        style={{
+                          borderRadius: 8, overflow: "hidden", background: "#f5f0e8",
+                          cursor: isAdmin ? "pointer" : "default",
+                          border: "1.5px solid transparent",
+                          transition: "border-color 0.15s, transform 0.15s",
+                        }}
+                        onMouseEnter={e => { if (isAdmin) { e.currentTarget.style.borderColor = "#1f6f54"; e.currentTarget.style.transform = "translateY(-2px)"; }}}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.transform = "translateY(0)"; }}
+                      >
                         {img ? (
                           <img
                             src={`${base}/storage/v1/object/public/mug-images/${img.storage_path}`}
@@ -203,8 +217,9 @@ function PersonModal({ person, mugs, countries, language, isAdmin, onClose, onSa
                             #{mug.collection_number}
                           </div>
                         )}
-                        <div style={{ padding: "4px 6px", fontSize: 10, color: "#5f6f66", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          #{mug.collection_number}
+                        <div style={{ padding: "4px 6px", fontSize: 10, color: "#5f6f66", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span>#{mug.collection_number}</span>
+                          {isAdmin && <span style={{ color: "#1f6f54", fontSize: 10 }}>✎</span>}
                         </div>
                       </div>
                     );
@@ -306,6 +321,17 @@ function PersonModal({ person, mugs, countries, language, isAdmin, onClose, onSa
         )}
       </div>
     </div>
+
+    {/* Mug edit drawer — opens on top of person modal */}
+    {editingMugId && (
+      <MugEditDrawer
+        mugId={editingMugId}
+        language={language}
+        onClose={() => setEditingMugId(null)}
+        onChanged={() => { setEditingMugId(null); onSaved?.(); }}
+      />
+    )}
+    </>
   );
 }
 

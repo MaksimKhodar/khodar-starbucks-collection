@@ -185,13 +185,13 @@ function Drawer({ isOpen, onClose, title, children }) {
         style={{
           position: "fixed", inset: 0,
           background: "rgba(0,0,0,0.35)",
-          zIndex: 200, backdropFilter: "blur(2px)",
+          zIndex: 600, backdropFilter: "blur(2px)",
         }}
       />
       <div style={{
         position: "fixed", top: 0, right: 0, bottom: 0,
         width: "min(640px, 100vw)",
-        background: "#fff", zIndex: 201,
+        background: "#fff", zIndex: 601,
         display: "flex", flexDirection: "column",
         boxShadow: "-8px 0 40px rgba(0,0,0,0.15)",
       }}>
@@ -645,7 +645,15 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
   function toggleMultiValue(field, key) {
     setForm(prev => {
       const cur = ensureArray(prev[field]);
-      return { ...prev, [field]: cur.includes(key) ? cur.filter(v => v !== key) : [...cur, key] };
+      const next = cur.includes(key) ? cur.filter(v => v !== key) : [...cur, key];
+      const nextForm = { ...prev, [field]: next };
+      // Auto-save for existing mugs
+      if (prev.id) {
+        const dbField = field === "type_values" ? "collection_keys" : field;
+        supabase.from("mugs").update({ [dbField]: next }).eq("id", prev.id)
+          .then(({ error }) => { if (error) console.error("Auto-save error:", error); });
+      }
+      return nextForm;
     });
   }
 
