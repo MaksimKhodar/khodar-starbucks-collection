@@ -442,7 +442,7 @@ function AppContent() {
           {/* ── Hero ── */}
           <section style={{
             display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2fr)",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 3fr)",
             background: "#fff",
             borderBottom: "0.5px solid #e8e2d9",
           }}>
@@ -522,14 +522,15 @@ function AppContent() {
               )}
             </div>
 
-            {/* Right: legend + globe 2/3 — no border-radius, flush edges */}
-            <div style={{ display: "flex", flexDirection: "column" }}>
+            {/* Right: legend + globe 2/3 */}
+            <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
 
               {/* Legend bar */}
               <div style={{
                 display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center",
                 padding: "10px 16px",
                 background: "#faf7f3", borderBottom: "0.5px solid #e8e2d9",
+                flexShrink: 0,
               }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: "#8a9e96", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                   {h.legendTitle}
@@ -546,8 +547,8 @@ function AppContent() {
                 ))}
               </div>
 
-              {/* Globe — fills remaining height, no border-radius */}
-              <div style={{ flex: 1, position: "relative", minHeight: 504, overflow: "hidden" }}>
+              {/* Globe — fills the available height */}
+              <div style={{ position: "relative", flex: 1, minHeight: 380, overflow: "hidden" }}>
                 <div style={{ position: "absolute", inset: 0 }}>
                   <GlobeMapAsync
                     countryData={globeCountryData}

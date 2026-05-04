@@ -16,7 +16,7 @@ const LABELS = {
     collection: "Коллекция", color: "Цвет", sort: "Сортировка",
     allCountries: "Все страны", allStates: "Все штаты", allCities: "Все города",
     allCollections: "Все коллекции", allColors: "Все цвета",
-    newest: "Сначала новые", oldest: "Сначала старые", titleAsc: "Название А–Я",
+    newest: "Сначала новые", oldest: "Сначала старые", titleAsc: "Название А–Я", numberDesc: "По номеру ↓", numberAsc: "По номеру ↑",
     found: "Найдено", mugs: "кружек", reset: "Сбросить всё",
     noResultsTitle: "Ничего не найдено", noResultsText: "Попробуй изменить фильтры.",
     type: "Тип", receivedAt: "Получена", broughtBy: "Привёз",
@@ -32,7 +32,7 @@ const LABELS = {
     collection: "Collection", color: "Color", sort: "Sort",
     allCountries: "All countries", allStates: "All states", allCities: "All cities",
     allCollections: "All collections", allColors: "All colors",
-    newest: "Newest first", oldest: "Oldest first", titleAsc: "Title A–Z",
+    newest: "Newest first", oldest: "Oldest first", titleAsc: "Title A–Z", numberDesc: "By number ↓", numberAsc: "By number ↑",
     found: "Found", mugs: "mugs", reset: "Reset all",
     noResultsTitle: "Nothing found", noResultsText: "Try changing the filters.",
     type: "Type", receivedAt: "Received", broughtBy: "Brought by",
@@ -473,7 +473,7 @@ function CatalogPage({
   const [cityFilter, setCityFilter] = useState(EMPTY_VALUE);
   const [collectionFilter, setCollectionFilter] = useState(EMPTY_VALUE);
   const [colorFilter, setColorFilter] = useState(EMPTY_VALUE);
-  const [sortMode, setSortMode] = useState("newest");
+  const [sortMode, setSortMode] = useState("numberDesc");
 
   useEffect(() => { if (initialCountryId) setCountryFilter(initialCountryId); }, [initialCountryId]);
   useEffect(() => { if (initialStateId) setStateFilter(initialStateId); }, [initialStateId]);
@@ -599,6 +599,8 @@ function CatalogPage({
       .sort((a, b) => {
         if (sortMode === "oldest") return getDateTime(a.received_at) - getDateTime(b.received_at);
         if (sortMode === "titleAsc") return String(a.title || "").localeCompare(String(b.title || ""));
+        if (sortMode === "numberDesc") return (Number(b.collection_number) || 0) - (Number(a.collection_number) || 0);
+        if (sortMode === "numberAsc") return (Number(a.collection_number) || 0) - (Number(b.collection_number) || 0);
         return getDateTime(b.received_at) - getDateTime(a.received_at);
       });
   }, [mugs, searchQuery, countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter, sortMode, countriesById, statesById, citiesById, language]);
@@ -636,7 +638,7 @@ function CatalogPage({
     return tags;
   }, [countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter, countries, statesById, cityOptions, language]);
 
-  const sortLabel = { newest: ui.newest, oldest: ui.oldest, titleAsc: ui.titleAsc }[sortMode] || ui.newest;
+  const sortLabel = { newest: ui.newest, oldest: ui.oldest, titleAsc: ui.titleAsc, numberDesc: ui.numberDesc, numberAsc: ui.numberAsc }[sortMode] || ui.numberDesc;
 
   const SidebarContent = () => (
     <>
@@ -746,6 +748,8 @@ function CatalogPage({
                 background: "#faf7f3", fontSize: 13, color: "#374151", outline: "none", cursor: "pointer",
               }}
             >
+              <option value="numberDesc">{ui.numberDesc}</option>
+              <option value="numberAsc">{ui.numberAsc}</option>
               <option value="newest">{ui.newest}</option>
               <option value="oldest">{ui.oldest}</option>
               <option value="titleAsc">{ui.titleAsc}</option>
@@ -851,7 +855,7 @@ function CatalogPage({
 
       {/* ── Mobile sort sheet ── */}
       <MobileFilterSheet isOpen={mobileSortOpen} onClose={() => setMobileSortOpen(false)} title={ui.sort}>
-        {["newest", "oldest", "titleAsc"].map(mode => (
+        {["numberDesc", "numberAsc", "newest", "oldest", "titleAsc"].map(mode => (
           <button
             key={mode}
             type="button"
@@ -865,7 +869,7 @@ function CatalogPage({
               cursor: "pointer", textAlign: "left",
             }}
           >
-            {mode === "newest" ? ui.newest : mode === "oldest" ? ui.oldest : ui.titleAsc}
+            {ui[mode] || mode}
             {sortMode === mode && <span style={{ float: "right" }}>✓</span>}
           </button>
         ))}
