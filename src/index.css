@@ -877,3 +877,12 @@ select {
     padding-right: 0;
   }
 }
+/* Admin login button — mobile only */
+.admin-login-mobile {
+  display: none;
+}
+@media (max-width: 768px) {
+  .admin-login-mobile {
+    display: block;
+  }
+}

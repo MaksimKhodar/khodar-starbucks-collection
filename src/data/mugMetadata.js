@@ -317,9 +317,7 @@ export function buildTypeOptions({
       isPreset: false,
     }));
 
-  return [...presetOptions, ...customOptions].sort((a, b) =>
-    a.label.localeCompare(b.label, language === "en" ? "en" : "ru")
-  );
+  return [...presetOptions, ...customOptions];
 }
 
 export function getCityOptionsForCountry(countryIso = "", legacyValues = []) {

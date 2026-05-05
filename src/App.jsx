@@ -425,7 +425,7 @@ function AppContent() {
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <LanguageSwitch />
-          {isAdminAuthenticated && (
+          {isAdminAuthenticated ? (
             <>
               <span style={{ display: "inline-flex", alignItems: "center", borderRadius: 999, padding: "5px 10px", background: "#dff4e7", color: "#0d6f48", fontWeight: 600, fontSize: 12 }}>
                 {language === "en" ? "Admin" : "Режим администратора"}
@@ -434,6 +434,12 @@ function AppContent() {
                 {language === "en" ? "Logout" : "Выйти"}
               </button>
             </>
+          ) : (
+            <button type="button" onClick={() => { setAdminAuthError(""); setIsLoginOpen(true); }}
+              className="admin-login-mobile"
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, opacity: 0.2, padding: "4px 6px", lineHeight: 1 }}
+              title="Войти как администратор"
+            >⚙</button>
           )}
         </div>
       </nav>
