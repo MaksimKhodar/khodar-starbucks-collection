@@ -13,17 +13,15 @@ import { normalizeIso2, formatDate } from "./lib/utils";
 
 const ADMIN_TOKEN_STORAGE_KEY = "khodar_admin_token";
 const ADMIN_ONLY_VIEWS = new Set(["people", "countries", "mugs"]);
+const MOBILE_BREAKPOINT = 768;
 
 // ─── Hero text ────────────────────────────────────────────────────────────────
-// Based on real captions: trips, friends who remembered, broken mugs that stay,
-// 11 years of geography-as-autobiography
 
 const HERO = {
   ru: {
     eyebrow: "Личная коллекция",
     title: "11 лет. 41 страна.\nКаждая кружка — история.",
     text: "Всё началось с минского ЦУМа в 2014-м и поездки в Дублин, где я влюбился в Starbucks. С тех пор каждая кружка — это место, момент или человек: командировка в Женеву, ночь в Стамбуле с лучшим другом, сюрприз из Нью-Йорка без повода. Некоторые кружки разбились — но здесь они живут.",
-    // Stats — labels with context
     stat1label: "кружек в коллекции",
     stat2label: (withMugs, total) => `${withMugs} из ${total} стран со Starbucks`,
     stat2sub: (missing) => `в ${missing} странах кружек ещё нет`,
@@ -114,11 +112,44 @@ function AdminLoginModal({ isOpen, language, loading, error, onClose, onSubmit }
   );
 }
 
+// ─── MobileStatsBar ───────────────────────────────────────────────────────────
+
+function MobileStatsBar({ mugsCount, countriesWithMugsCount, countriesWithStarbucksCount, visibleFriendsCount, h }) {
+  return (
+    <div style={{
+      display: "flex", overflowX: "auto", gap: 10, padding: "12px 16px",
+      background: "#faf7f3", borderTop: "0.5px solid #e8e2d9",
+      scrollbarWidth: "none",
+    }}>
+      <div style={{ flexShrink: 0, padding: "10px 16px", background: "#fff", borderRadius: 12, border: "0.5px solid #e8e2d9", minWidth: 120 }}>
+        <div style={{ fontSize: 26, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{mugsCount}</div>
+        <div style={{ fontSize: 11, color: "#5f6f66", marginTop: 3, whiteSpace: "nowrap" }}>{h.stat1label}</div>
+      </div>
+      <div style={{ flexShrink: 0, padding: "10px 16px", background: "#fff", borderRadius: 12, border: "0.5px solid #e8e2d9", minWidth: 120 }}>
+        <div style={{ fontSize: 26, fontWeight: 700, color: "#1f6f54", lineHeight: 1 }}>{countriesWithMugsCount}</div>
+        <div style={{ fontSize: 11, color: "#5f6f66", marginTop: 3, whiteSpace: "nowrap" }}>{h.stat2label(countriesWithMugsCount, countriesWithStarbucksCount)}</div>
+      </div>
+      <div style={{ flexShrink: 0, padding: "10px 16px", background: "#fff", borderRadius: 12, border: "0.5px solid #e8e2d9", minWidth: 120 }}>
+        <div style={{ fontSize: 26, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{visibleFriendsCount}</div>
+        <div style={{ fontSize: 11, color: "#5f6f66", marginTop: 3, whiteSpace: "nowrap" }}>{h.stat3label}</div>
+      </div>
+    </div>
+  );
+}
+
 // ─── AppContent ───────────────────────────────────────────────────────────────
 
 function AppContent() {
   const { language, t } = useLanguage();
   const h = HERO[language] || HERO.ru;
+
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < MOBILE_BREAKPOINT);
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
 
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
@@ -161,6 +192,10 @@ function AppContent() {
       .eq("id", mugId)
       .single();
     if (data) setMugs(prev => prev.map(m => m.id === mugId ? data : m));
+  }, []);
+
+  const removeMug = useCallback((mugId) => {
+    setMugs(prev => prev.filter(m => m.id !== mugId));
   }, []);
 
   const loadData = useCallback(async () => {
@@ -280,7 +315,6 @@ function AppContent() {
   const countriesWithStarbucksCount = useMemo(() => countries.filter(c => !!c.has_starbucks_current).length, [countries]);
   const visibleFriendsCount = useMemo(() => people.filter(p => p.is_visible).length, [people]);
 
-  // Count mugs per US state
   const mugCountByStateCode = useMemo(() => {
     const m = new Map();
     mugs.forEach(mug => {
@@ -300,7 +334,6 @@ function AppContent() {
       mugsCount: mugCountByCountryId.get(String(country.id)) ?? 0,
     }));
 
-    // Add US state entries so the globe can color them individually
     const usCountry = countries.find(c => normalizeIso2(c.iso2_code) === "US");
     const stateEntries = states
       .filter(s => String(s.code || "").startsWith("US-"))
@@ -427,9 +460,12 @@ function AppContent() {
           <LanguageSwitch />
           {isAdminAuthenticated ? (
             <>
-              <span style={{ display: "inline-flex", alignItems: "center", borderRadius: 999, padding: "5px 10px", background: "#dff4e7", color: "#0d6f48", fontWeight: 600, fontSize: 12 }}>
-                {language === "en" ? "Admin" : "Режим администратора"}
-              </span>
+              {/* Hide "Режим администратора" text on mobile, keep only on desktop */}
+              {!isMobile && (
+                <span style={{ display: "inline-flex", alignItems: "center", borderRadius: 999, padding: "5px 10px", background: "#dff4e7", color: "#0d6f48", fontWeight: 600, fontSize: 12 }}>
+                  {language === "en" ? "Admin" : "Режим администратора"}
+                </span>
+              )}
               <button type="button" className="secondary-button" onClick={handleAdminLogout} style={{ fontSize: 13 }}>
                 {language === "en" ? "Logout" : "Выйти"}
               </button>
@@ -483,19 +519,24 @@ function AppContent() {
           {/* ── Hero ── */}
           <section style={{
             display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 3fr)",
+            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) minmax(0, 3fr)",
             background: "#fff",
             borderBottom: "0.5px solid #e8e2d9",
           }}>
 
-            {/* Left — info 1/3 */}
-            <div style={{ padding: "40px 32px 40px 28px", display: "flex", flexDirection: "column", gap: 24, borderRight: "0.5px solid #e8e2d9" }}>
+            {/* Left — info panel */}
+            <div style={{
+              padding: isMobile ? "24px 20px 16px" : "40px 32px 40px 28px",
+              display: "flex", flexDirection: "column", gap: isMobile ? 16 : 24,
+              borderRight: isMobile ? "none" : "0.5px solid #e8e2d9",
+              borderBottom: isMobile ? "0.5px solid #e8e2d9" : "none",
+            }}>
 
               <div>
                 <p style={{ fontSize: 11, fontWeight: 700, color: "#1f6f54", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
                   {h.eyebrow}
                 </p>
-                <h1 style={{ fontSize: 24, fontWeight: 700, color: "#153126", lineHeight: 1.3, marginBottom: 14, whiteSpace: "pre-line" }}>
+                <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color: "#153126", lineHeight: 1.3, marginBottom: 14, whiteSpace: "pre-line" }}>
                   {h.title}
                 </h1>
                 <p style={{ fontSize: 13, color: "#5f6f66", lineHeight: 1.7 }}>
@@ -503,45 +544,51 @@ function AppContent() {
                 </p>
               </div>
 
-              {/* Stats — redesigned with context */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Stats blocks — vertical on desktop, horizontal scroll on mobile */}
+              {isMobile ? (
+                <MobileStatsBar
+                  mugsCount={mugs.length}
+                  countriesWithMugsCount={countriesWithMugsCount}
+                  countriesWithStarbucksCount={countriesWithStarbucksCount}
+                  visibleFriendsCount={visibleFriendsCount}
+                  h={h}
+                />
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-                {/* Mugs count */}
-                <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                    <span style={{ fontSize: 32, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{mugs.length}</span>
-                    <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat1label}</span>
+                  <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                      <span style={{ fontSize: 32, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{mugs.length}</span>
+                      <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat1label}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
+                      <span style={{ fontSize: 32, fontWeight: 700, color: "#1f6f54", lineHeight: 1 }}>{countriesWithMugsCount}</span>
+                      <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat2label(countriesWithMugsCount, countriesWithStarbucksCount)}</span>
+                    </div>
+                    <div style={{ height: 5, borderRadius: 999, background: "#e8e2d9", overflow: "hidden" }}>
+                      <div style={{
+                        height: "100%", borderRadius: 999, background: "#1f6f54",
+                        width: `${Math.round((countriesWithMugsCount / Math.max(countriesWithStarbucksCount, 1)) * 100)}%`,
+                        transition: "width 0.6s ease",
+                      }} />
+                    </div>
+                    <div style={{ marginTop: 5, fontSize: 11, color: "#8a9e96" }}>
+                      {h.stat2sub(countriesWithStarbucksCount - countriesWithMugsCount)}
+                    </div>
+                  </div>
+
+                  <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                      <span style={{ fontSize: 32, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{visibleFriendsCount}</span>
+                      <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat3label}</span>
+                    </div>
+                    <div style={{ marginTop: 4, fontSize: 11, color: "#8a9e96" }}>{h.stat3sub}</div>
                   </div>
                 </div>
-
-                {/* Countries progress */}
-                <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
-                    <span style={{ fontSize: 32, fontWeight: 700, color: "#1f6f54", lineHeight: 1 }}>{countriesWithMugsCount}</span>
-                    <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat2label(countriesWithMugsCount, countriesWithStarbucksCount)}</span>
-                  </div>
-                  {/* Progress bar */}
-                  <div style={{ height: 5, borderRadius: 999, background: "#e8e2d9", overflow: "hidden" }}>
-                    <div style={{
-                      height: "100%", borderRadius: 999, background: "#1f6f54",
-                      width: `${Math.round((countriesWithMugsCount / Math.max(countriesWithStarbucksCount, 1)) * 100)}%`,
-                      transition: "width 0.6s ease",
-                    }} />
-                  </div>
-                  <div style={{ marginTop: 5, fontSize: 11, color: "#8a9e96" }}>
-                    {h.stat2sub(countriesWithStarbucksCount - countriesWithMugsCount)}
-                  </div>
-                </div>
-
-                {/* Friends */}
-                <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                    <span style={{ fontSize: 32, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{visibleFriendsCount}</span>
-                    <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat3label}</span>
-                  </div>
-                  <div style={{ marginTop: 4, fontSize: 11, color: "#8a9e96" }}>{h.stat3sub}</div>
-                </div>
-              </div>
+              )}
 
               {/* Admin pills */}
               {isAdminAuthenticated && (
@@ -562,80 +609,80 @@ function AppContent() {
               )}
             </div>
 
-            {/* Right: legend + globe 2/3 */}
-            <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+            {/* Right: legend + globe — desktop only */}
+            {!isMobile && (
+              <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
 
-              {/* Legend bar */}
-              <div style={{
-                display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center",
-                padding: "10px 16px",
-                background: "#faf7f3", borderBottom: "0.5px solid #e8e2d9",
-                flexShrink: 0,
-              }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#8a9e96", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  {h.legendTitle}
-                </span>
-                {[
-                  { color: "#E8E1D7", border: "0.5px solid #ccc", label: h.l1 },
-                  { color: "#B7D7C2", label: h.l2 },
-                  { color: "#2F7D57", label: h.l3 },
-                ].map((item, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#5f6f66" }}>
-                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: item.color, border: item.border || "none", flexShrink: 0 }} />
-                    {item.label}
-                  </div>
-                ))}
-              </div>
-
-              {/* Globe — fills the available height */}
-              <div style={{ position: "relative", flex: 1, minHeight: 380, overflow: "hidden" }}>
-                <div style={{ position: "absolute", inset: 0 }}>
-                  <GlobeMapAsync
-                    countryData={globeCountryData}
-                    selectedCountryCode={selectedRegionCode}
-                    selectedRegionCode={selectedRegionCode}
-                    hoveredCountryCode={selectedRegionCode ? "" : hoveredRegionCode}
-                    hoveredRegionCode={selectedRegionCode ? "" : hoveredRegionCode}
-                    onCountryHover={handleCountryHover}
-                    onCountryClick={handleCountryClick}
-                    isActive={true}
-                    language={language}
-                  />
+                {/* Legend bar */}
+                <div style={{
+                  display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center",
+                  padding: "10px 16px",
+                  background: "#faf7f3", borderBottom: "0.5px solid #e8e2d9",
+                  flexShrink: 0,
+                }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#8a9e96", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    {h.legendTitle}
+                  </span>
+                  {[
+                    { color: "#E8E1D7", border: "0.5px solid #ccc", label: h.l1 },
+                    { color: "#B7D7C2", label: h.l2 },
+                    { color: "#2F7D57", label: h.l3 },
+                  ].map((item, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#5f6f66" }}>
+                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: item.color, border: item.border || "none", flexShrink: 0 }} />
+                      {item.label}
+                    </div>
+                  ))}
                 </div>
 
-                {/* Hint */}
-                {!selectedRegionCode && (
-                  <div style={{
-                    position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)",
-                    display: "flex", alignItems: "center", gap: 6,
-                    padding: "5px 12px", borderRadius: 999,
-                    background: "rgba(255,255,255,0.88)",
-                    fontSize: 12, color: "#5f6f66", whiteSpace: "nowrap", pointerEvents: "none",
-                  }}>
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#1f6f54" }} />
-                    {h.hint}
+                {/* Globe */}
+                <div style={{ position: "relative", flex: 1, minHeight: 380, overflow: "hidden" }}>
+                  <div style={{ position: "absolute", inset: 0 }}>
+                    <GlobeMapAsync
+                      countryData={globeCountryData}
+                      selectedCountryCode={selectedRegionCode}
+                      selectedRegionCode={selectedRegionCode}
+                      hoveredCountryCode={selectedRegionCode ? "" : hoveredRegionCode}
+                      hoveredRegionCode={selectedRegionCode ? "" : hoveredRegionCode}
+                      onCountryHover={handleCountryHover}
+                      onCountryClick={handleCountryClick}
+                      isActive={true}
+                      language={language}
+                    />
                   </div>
-                )}
 
-                {/* Selected country badge */}
-                {selectedRegionCode && panelCountryRecord && (
-                  <div style={{
-                    position: "absolute", top: 14, left: 14,
-                    display: "flex", alignItems: "center", gap: 8,
-                    padding: "8px 14px", borderRadius: 12,
-                    background: "rgba(255,255,255,0.92)",
-                    border: "0.5px solid #e8e2d9",
-                    fontSize: 13, color: "#153126", fontWeight: 600,
-                  }}>
-                    {getCountryDisplayName(panelCountryRecord)}
-                    <span style={{ color: "#1f6f54", fontWeight: 700 }}>
-                      {panelMugs.length} {h.mugsLabel}
-                    </span>
-                    <button type="button" onClick={clearSelection} style={{ background: "none", border: "none", fontSize: 16, color: "#9ca3af", cursor: "pointer", padding: 0, lineHeight: 1 }}>×</button>
-                  </div>
-                )}
+                  {!selectedRegionCode && (
+                    <div style={{
+                      position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)",
+                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "5px 12px", borderRadius: 999,
+                      background: "rgba(255,255,255,0.88)",
+                      fontSize: 12, color: "#5f6f66", whiteSpace: "nowrap", pointerEvents: "none",
+                    }}>
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#1f6f54" }} />
+                      {h.hint}
+                    </div>
+                  )}
+
+                  {selectedRegionCode && panelCountryRecord && (
+                    <div style={{
+                      position: "absolute", top: 14, left: 14,
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "8px 14px", borderRadius: 12,
+                      background: "rgba(255,255,255,0.92)",
+                      border: "0.5px solid #e8e2d9",
+                      fontSize: 13, color: "#153126", fontWeight: 600,
+                    }}>
+                      {getCountryDisplayName(panelCountryRecord)}
+                      <span style={{ color: "#1f6f54", fontWeight: 700 }}>
+                        {panelMugs.length} {h.mugsLabel}
+                      </span>
+                      <button type="button" onClick={clearSelection} style={{ background: "none", border: "none", fontSize: 16, color: "#9ca3af", cursor: "pointer", padding: 0, lineHeight: 1 }}>×</button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </section>
 
           {/* ── Catalog ── */}
@@ -652,6 +699,7 @@ function AppContent() {
               language={language}
               isAdmin={isAdminAuthenticated}
               onMugChanged={updateMug}
+              onMugDeleted={removeMug}
             />
           </div>
         </>

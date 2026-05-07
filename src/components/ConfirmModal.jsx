@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 function ConfirmModal({
   isOpen = false,
   title = "",
@@ -8,6 +10,15 @@ function ConfirmModal({
   onConfirm,
   onCancel,
 }) {
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleKey(e) {
+      if (e.key === "Escape") onCancel?.();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [isOpen, onCancel]);
+
   if (!isOpen) return null;
 
   return (

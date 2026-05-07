@@ -700,6 +700,9 @@ select {
   line-height: 1;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(20, 40, 28, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .carousel-arrow-left {
@@ -708,6 +711,20 @@ select {
 
 .carousel-arrow-right {
   right: 10px;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.mug-carousel-shimmer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(90deg, #f0ebe3 25%, #e4ddd3 50%, #f0ebe3 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
 }
 
 .mug-carousel-thumbs {

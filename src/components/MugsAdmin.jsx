@@ -1,13 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { formatDateTime, normalizeIso2 } from "../lib/utils";
 import { uploadImagesForMug } from "../lib/mugImages";
-import MugImagesManager from "./MugImagesManager";
-import PersonSelect from "./PersonSelect";
-import ConfirmModal from "./ConfirmModal";
-import TypeSelect from "./TypeSelect";
+import MugForm from "./MugForm";
+import MugTable from "./MugTable";
 import {
-  COLOR_OPTIONS,
   ensureArray,
   buildTypeOptions,
   getCityDisplayName,
@@ -135,7 +132,6 @@ function mapDbCityToOption(cityRow, countryIso = "") {
 }
 
 function mergeCityOptions(primary = [], legacyValues = [], countryIso = "", countryId = "", stateId = "") {
-  // Deduplicate primary options themselves first (db may have dupes)
   const seenPrimary = new Set();
   const dedupedPrimary = primary.filter(o => {
     const norm = normalizeCityName(o.label?.en || o.label?.ru || o.key);
@@ -158,123 +154,10 @@ function mergeCityOptions(primary = [], legacyValues = [], countryIso = "", coun
   );
 }
 
-// ─── Color swatches ───────────────────────────────────────────────────────────
-
-const COLOR_SWATCHES = {
-  green: "#4CAF50", blue: "#2196F3", red: "#F44336", yellow: "#FFC107",
-  orange: "#FF9800", brown: "#795548", black: "#212121", white: "#F5F5F5",
-  gray: "#9E9E9E", grey: "#9E9E9E", purple: "#9C27B0", pink: "#E91E63",
-  gold: "#FFD700", silver: "#C0C0C0", beige: "#D4B896", turquoise: "#00BCD4",
-  multicolor: "#ccc", navy: "#1a237e",
-};
-
-// ─── Drawer ───────────────────────────────────────────────────────────────────
-
-function Drawer({ isOpen, onClose, title, children }) {
-  useEffect(() => {
-    document.body.style.overflow = isOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  return (
-    <>
-      <div
-        onClick={onClose}
-        style={{
-          position: "fixed", inset: 0,
-          background: "rgba(0,0,0,0.35)",
-          zIndex: 600, backdropFilter: "blur(2px)",
-        }}
-      />
-      <div style={{
-        position: "fixed", top: 0, right: 0, bottom: 0,
-        width: "min(640px, 100vw)",
-        background: "#fff", zIndex: 601,
-        display: "flex", flexDirection: "column",
-        boxShadow: "-8px 0 40px rgba(0,0,0,0.15)",
-      }}>
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "18px 24px", borderBottom: "1px solid #e8e2d9", flexShrink: 0,
-        }}>
-          <span style={{ fontSize: 17, fontWeight: 700, color: "#153126" }}>{title}</span>
-          <button
-            type="button" onClick={onClose}
-            style={{
-              background: "none", border: "none", fontSize: 22,
-              color: "#9ca3af", cursor: "pointer", padding: "4px 8px", lineHeight: 1,
-            }}
-          >✕</button>
-        </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px 40px" }}>
-          {children}
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ─── SectionDivider ───────────────────────────────────────────────────────────
-
-function SectionDivider({ title }) {
-  return (
-    <div style={{
-      gridColumn: "1 / -1",
-      display: "flex", alignItems: "center", gap: 10,
-      margin: "12px 0 0",
-    }}>
-      <span style={{
-        fontSize: 11, fontWeight: 800, color: "#1f6f54",
-        textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap",
-      }}>{title}</span>
-      <div style={{ flex: 1, height: 1, background: "#e2ddd4" }} />
-    </div>
-  );
-}
-
-// ─── ColorChips ───────────────────────────────────────────────────────────────
-
-function ColorChips({ options = [], values = [], onToggle, language = "ru" }) {
-  return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-      {options.map(option => {
-        const active = values.includes(option.key);
-        const swatch = COLOR_SWATCHES[option.key];
-        return (
-          <button
-            key={option.key}
-            type="button"
-            onClick={() => onToggle(option.key)}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 7,
-              padding: "7px 13px", borderRadius: 999,
-              border: active ? "2px solid #1f6f54" : "1.5px solid #d1d5db",
-              background: active ? "#ecf7f1" : "#fff",
-              color: active ? "#15563f" : "#374151",
-              cursor: "pointer", fontSize: 13, fontWeight: 600,
-              transition: "all 0.15s",
-            }}
-          >
-            {swatch && (
-              <span style={{
-                width: 13, height: 13, borderRadius: "50%", flexShrink: 0,
-                background: swatch,
-                border: option.key === "white" ? "1px solid #ccc" : "none",
-              }} />
-            )}
-            {getLocalizedOptionLabel(option, language)}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 // ─── MugsAdmin ────────────────────────────────────────────────────────────────
 
-function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbeddedClose = null }) {
+function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbeddedClose = null, initialCreate = false }) {
+  const didAutoCreate = useRef(false);
   const [mugs, setMugs] = useState([]);
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
@@ -339,13 +222,6 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
   }
 
   useEffect(() => { loadAll(); }, []);
-
-  // Open edit form when initialEditMugId provided (from CatalogPage)
-  useEffect(() => {
-    if (!initialEditMugId || !mugs.length || !openEditForm) return;
-    const mug = mugs.find(m => String(m.id) === String(initialEditMugId));
-    if (mug) openEditForm(mug);
-  }, [initialEditMugId, mugs]);
 
   // ── Maps ──────────────────────────────────────────────────────────────────
 
@@ -421,7 +297,6 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
       .filter(m => String(m.country_id) === String(form.country_id || ""))
       .filter(m => !form.state_id || String(m.state_id || "") === String(form.state_id || ""))
       .map(m => {
-        // Prefer localized name from cities table
         if (m.city_id) {
           const cityRecord = citiesById.get(String(m.city_id));
           if (cityRecord) {
@@ -446,18 +321,15 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
     const sid = String(stateId || "");
     const iso = resolveCountryIso(cid);
 
-    // All cities for this country (and state if selected)
     const dbOpts = cities
       .filter(c => String(c.country_id || "") === cid)
       .filter(c => sid ? String(c.state_id || "") === sid : true)
       .map(c => mapDbCityToOption(c, iso));
 
-
     const localOpts = localCityOptions.filter(c =>
       c.countryId === cid && (sid ? String(c.stateId || "") === sid : true)
     );
 
-    // Count how many mugs each city has
     const mugCountByCityId = new Map();
     mugs.forEach(m => {
       if (m.country_id && String(m.country_id) === cid) {
@@ -468,7 +340,6 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
 
     const allOpts = mergeCityOptions([...dbOpts, ...localOpts], legacyValues, iso, cid, sid);
 
-    // Sort: top 5 by mug count first (pinned), rest alphabetically
     const withCount = allOpts.map(o => ({
       ...o,
       _mugCount: mugCountByCityId.get(String(o.id || "")) || 0,
@@ -499,6 +370,30 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
     if (currentCountryHasStates && !form.state_id) return false;
     return currentCityOptions.length > 0;
   }, [form.country_id, form.state_id, currentCountryHasStates, currentCityOptions]);
+
+  // ── City loading ──────────────────────────────────────────────────────────
+
+  async function loadCitiesForCountry(countryId, stateId = null) {
+    if (!countryId) { setCities([]); return; }
+    setCitiesError("");
+    let query = supabase
+      .from("cities")
+      .select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude, is_active, country_iso2, state_code")
+      .eq("country_id", countryId)
+      .eq("is_active", true)
+      .order("name_en", { ascending: true })
+      .limit(500);
+    if (stateId) query = query.eq("state_id", stateId);
+    const { data, error } = await query;
+    if (error) { setCitiesError("Не удалось загрузить города."); return; }
+    setCities(prev => {
+      const other = prev.filter(c =>
+        String(c.country_id) !== String(countryId) ||
+        (stateId && String(c.state_id) !== String(stateId))
+      );
+      return [...other, ...(data ?? [])];
+    });
+  }
 
   // ── Form ──────────────────────────────────────────────────────────────────
 
@@ -551,6 +446,20 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
     };
   }
 
+  // openEditForm is defined before the useEffect that references it
+  function openEditForm(mug) {
+    const f = createFormState(mug);
+    setForm(f); setInitialForm(f); setPendingImageFiles([]); setIsFormOpen(true); setError("");
+    if (f.country_id) loadCitiesForCountry(f.country_id, f.state_id || null);
+  }
+
+  // Open edit form when initialEditMugId provided (from CatalogPage)
+  useEffect(() => {
+    if (!initialEditMugId || !mugs.length) return;
+    const mug = mugs.find(m => String(m.id) === String(initialEditMugId));
+    if (mug) openEditForm(mug);
+  }, [initialEditMugId, mugs]);
+
   function openCreateForm() {
     const f = {
       ...emptyForm,
@@ -560,11 +469,13 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
     setForm(f); setInitialForm(f); setPendingImageFiles([]); setIsFormOpen(true); setError("");
   }
 
-  function openEditForm(mug) {
-    const f = createFormState(mug);
-    setForm(f); setInitialForm(f); setPendingImageFiles([]); setIsFormOpen(true); setError("");
-    if (f.country_id) loadCitiesForCountry(f.country_id, f.state_id || null);
-  }
+  // Auto-open create form when used as an embedded create drawer.
+  // Waits for data to load so nextCollectionNumber is correct.
+  useEffect(() => {
+    if (!initialCreate || didAutoCreate.current || loading) return;
+    didAutoCreate.current = true;
+    openCreateForm();
+  }, [initialCreate, loading]);
 
   function hasFormChanged() {
     return JSON.stringify(form) !== JSON.stringify(initialForm) || pendingImageFiles.length > 0;
@@ -591,28 +502,6 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
     setForm(prev => ({ ...prev, collection_number: v, slug: buildCollectionSlug(v) || prev.slug }));
   }
 
-  async function loadCitiesForCountry(countryId, stateId = null) {
-    if (!countryId) { setCities([]); return; }
-    setCitiesError("");
-    let query = supabase
-      .from("cities")
-      .select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude, is_active, country_iso2, state_code")
-      .eq("country_id", countryId)
-      .eq("is_active", true)
-      .order("name_en", { ascending: true })
-      .limit(500);
-    if (stateId) query = query.eq("state_id", stateId);
-    const { data, error } = await query;
-    if (error) { setCitiesError("Не удалось загрузить города."); return; }
-    setCities(prev => {
-      const other = prev.filter(c =>
-        String(c.country_id) !== String(countryId) ||
-        (stateId && String(c.state_id) !== String(stateId))
-      );
-      return [...other, ...(data ?? [])];
-    });
-  }
-
   function updateCountry(value) {
     const nextStateOpts = stateOptionsByCountryId.get(String(value)) ?? [];
     const hasStates = nextStateOpts.length > 0;
@@ -633,7 +522,6 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
     );
     setForm(prev => ({
       ...prev,
-      // FIX: city_id — UUID, не оборачивать в Number()
       city_id: selectedCity?.id ? String(selectedCity.id) : "",
       city_key: selectedCity?.key || selectedValue || "",
       city: selectedCity
@@ -647,7 +535,6 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
       const cur = ensureArray(prev[field]);
       const next = cur.includes(key) ? cur.filter(v => v !== key) : [...cur, key];
       const nextForm = { ...prev, [field]: next };
-      // Auto-save for existing mugs
       if (prev.id) {
         const dbField = field === "type_values" ? "collection_keys" : field;
         supabase.from("mugs").update({ [dbField]: next }).eq("id", prev.id)
@@ -785,7 +672,6 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
     const selectedCityOption = currentCityOptions.find(
       o => o.key === form.city_key || String(o.id) === String(form.city_id)
     ) || null;
-    // Use localized city label — prefer ru for ru language, en for en
     const cityLabel = selectedCityOption
       ? (language === "en"
           ? selectedCityOption.label.en || selectedCityOption.label.ru || ""
@@ -806,11 +692,9 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
       slug: baseSlug,
       title: form.title.trim(),
       country_id: Number(form.country_id),
-      // FIX: fill country_iso2 and state_code
       country_iso2: resolveCountryIso(form.country_id) || null,
       state_id: selectedStateOption?.id ? Number(selectedStateOption.id) : null,
       state_code: selectedStateOption?.code || null,
-      // FIX: city_id is UUID — store as string, NOT Number()
       city_id: selectedCityOption?.id ? String(selectedCityOption.id) : null,
       city_key: selectedCityOption?.key || null,
       city: cityLabel || null,
@@ -826,7 +710,6 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
       updated_at: nowIso,
     };
 
-    // Auto-fill brought_by from people records
     if (!payload.brought_by && payload.brought_by_person_ids.length > 0) {
       const { data: peopleData } = await supabase
         .from("people").select("first_name, last_name")
@@ -948,7 +831,6 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
     const numQ = numberFilter.trim();
     return preparedMugs
       .filter(mug => {
-        // Exact match by collection number
         if (numQ && String(mug.collection_number || "") !== numQ) return false;
         if (countryFilter && String(mug.country_id || "") !== String(countryFilter)) return false;
         if (cityFilter && mug.cityFilterValue !== cityFilter) return false;
@@ -977,501 +859,67 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  const isEmbedded = !!(initialEditMugId || initialCreate);
+
+  const mugFormProps = {
+    isOpen: isFormOpen,
+    onClose: requestCloseForm,
+    form, error, saving, language, nextCollectionNumber,
+    pendingImageFiles, onPendingFilesChange: setPendingImageFiles,
+    countryDisplayOptions, currentStateOptions, currentCityOptions,
+    currentCountryHasStates, hasDbCities, statesError, citiesError,
+    typeOptions, isCityCreatorOpen,
+    onOpenCityCreator: () => setIsCityCreatorOpen(true),
+    newCityName, onNewCityNameChange: setNewCityName,
+    isCreatingCity, cityCreateError, onCreateCity: createCity,
+    onCancelCityCreator: closeCityCreator,
+    isDiscardModalOpen, onCancelDiscard: () => setIsDiscardModalOpen(false),
+    onConfirmDiscard: closeFormImmediately,
+    onSubmit: saveForm,
+    onUpdateForm: updateForm,
+    onUpdateCollectionNumber: updateCollectionNumber,
+    onUpdateCountry: updateCountry,
+    onUpdateState: updateState,
+    onUpdateCity: updateCity,
+    onToggleMultiValue: toggleMultiValue,
+    onImageChanged: async () => { await loadAll(); await onChanged?.(); },
+  };
+
+  // When used as an embedded drawer (edit or create from CatalogPage),
+  // render only the fixed-position form — no admin table section visible.
+  if (isEmbedded) {
+    return <MugForm {...mugFormProps} />;
+  }
+
   return (
     <section className="card admin-card">
-
-      {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-      <div className="admin-toolbar">
-        <div>
-          <div className="section-title">Администрирование кружек</div>
-          <p className="admin-subtitle">
-            Здесь можно добавлять, редактировать и удалять кружки, управлять цветами, типами и городами.
-          </p>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ position: "relative", flex: "1 1 240px" }}>
-            <span style={{
-              position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
-              color: "#8a9e96", pointerEvents: "none",
-            }}>🔍</span>
-            <input
-              className="admin-search"
-              type="text"
-              placeholder="Поиск по названию, стране, городу, цвету..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ paddingLeft: 36 }}
-            />
-          </div>
-
-          <input
-            className="admin-search"
-            type="number"
-            min="1"
-            placeholder="№ кружки"
-            value={numberFilter}
-            onChange={e => setNumberFilter(e.target.value.replace(/[^\d]/g, ""))}
-            style={{ width: 100, flex: "0 0 auto" }}
-            title="Точный поиск по номеру коллекции"
-          />
-
-          <button
-            type="button"
-            onClick={() => setFiltersOpen(p => !p)}
-            className="secondary-button"
-            style={{
-              background: filtersOpen ? "#153126" : undefined,
-              color: filtersOpen ? "#fff" : undefined,
-              display: "flex", alignItems: "center", gap: 6,
-            }}
-          >
-            ⚙ Фильтры
-            {activeFilters > 0 && (
-              <span style={{
-                background: "#1f6f54", color: "#fff",
-                borderRadius: 999, padding: "1px 7px", fontSize: 11, fontWeight: 700,
-              }}>{activeFilters}</span>
-            )}
-          </button>
-
-          <select
-            className="admin-search"
-            value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
-            style={{ flex: "0 0 auto" }}
-          >
-            <option value="collection-desc">№: новые сверху</option>
-            <option value="collection-asc">№: старые сверху</option>
-            <option value="country-asc">Страна А→Я</option>
-            <option value="created-desc">Недавно добавленные</option>
-            <option value="updated-desc">Недавно изменённые</option>
-          </select>
-
-          <button className="secondary-button" onClick={loadAll} type="button" disabled={saving}>
-            Обновить
-          </button>
-          <button className="primary-button" onClick={openCreateForm} type="button" disabled={isFormOpen}>
-            + Добавить кружку
-          </button>
-        </div>
-
-        {filtersOpen && (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: 12, padding: 16,
-            background: "#f8f4ed", borderRadius: 16,
-            border: "1px solid #eadfce", marginTop: 4,
-          }}>
-            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 700, color: "#31443a" }}>
-              Страна
-              <select className="admin-search" value={countryFilter} onChange={e => { setCountryFilter(e.target.value); setCityFilter(""); }}>
-                <option value="">Все страны</option>
-                {countryFilterOptions.map(o => <option key={o.value} value={o.value}>{o.displayLabel}</option>)}
-              </select>
-            </label>
-            <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 700, color: "#31443a" }}>
-              Город
-              <select className="admin-search" value={cityFilter} onChange={e => setCityFilter(e.target.value)}>
-                <option value="">Все города</option>
-                {cityFilterOptions.map(o => <option key={o.value} value={o.value}>{o.displayLabel}</option>)}
-              </select>
-            </label>
-            <div style={{ display: "flex", alignItems: "flex-end" }}>
-              <button
-                type="button" className="secondary-button"
-                onClick={() => { setCountryFilter(""); setCityFilter(""); setNumberFilter(""); setSearch(""); }}
-              >
-                Сбросить все
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Table ───────────────────────────────────────────────────────── */}
-      {loading ? (
-        <div className="empty-state"><h2>Загрузка…</h2></div>
-      ) : error && !isFormOpen ? (
-        <div className="empty-state"><h2>Ошибка</h2><p>{error}</p></div>
-      ) : (
-        <div className="admin-table-wrap">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>№</th>
-                <th>Название</th>
-                <th>Страна</th>
-                <th>Штат</th>
-                <th>Город</th>
-                <th>Тип</th>
-                <th>Цвета</th>
-                <th>Дата получения</th>
-                <th>Статус</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredMugs.map(mug => (
-                <tr key={mug.id}>
-                  <td><strong>{mug.collection_number || "—"}</strong></td>
-                  <td>
-                    <div className="table-title">{mug.title}</div>
-                    {mug.brought_by && <div className="table-subtitle">{mug.brought_by}</div>}
-                  </td>
-                  <td>{mug.countryLabel || "—"}</td>
-                  <td>{mug.stateLabel || "—"}</td>
-                  <td>{mug.cityLabel || "—"}</td>
-                  <td>{mug.typeLabels.join(", ") || "—"}</td>
-                  <td>{mug.colorLabels.join(", ") || "—"}</td>
-                  <td>{mug.received_at || "—"}</td>
-                  <td>
-                    <span className={mug.is_published ? "status-badge status-badge-light" : "status-badge status-badge-gray"}>
-                      {mug.is_published ? "published" : "draft"}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="row-actions">
-                      <button
-                        className="secondary-button"
-                        onClick={() => openEditForm(mug)}
-                        type="button" disabled={saving}
-                      >Редактировать</button>
-                      <button
-                        className="danger-button"
-                        onClick={() => deleteMug(mug.id)}
-                        type="button" disabled={saving}
-                      >Удалить</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {filteredMugs.length === 0 && (
-            <div className="empty-inline">Ничего не найдено.</div>
-          )}
-        </div>
-      )}
-
-      {/* ── Drawer ──────────────────────────────────────────────────────── */}
-      <Drawer
-        isOpen={isFormOpen}
-        onClose={requestCloseForm}
-        title={form.id ? `Редактировать кружку #${form.collection_number}` : "Новая кружка"}
-      >
-        <form onSubmit={saveForm}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-
-            {/* ── Основное ── */}
-            <SectionDivider title="Основное" />
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>
-                  Название <span style={{ color: "#dc2626" }}>*</span>
-                </span>
-                <input
-                  type="text"
-                  value={form.title}
-                  onChange={e => updateForm("title", e.target.value)}
-                  placeholder="Например: Starbucks Warsaw"
-                />
-              </label>
-            </div>
-
-            <label style={{ display: "grid", gap: 6 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>Дата получения</span>
-              <input
-                type="date"
-                value={form.received_at}
-                onChange={e => updateForm("received_at", e.target.value)}
-              />
-            </label>
-
-            <label style={{ display: "grid", gap: 6 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>
-                № в коллекции <span style={{ color: "#dc2626" }}>*</span>
-              </span>
-              <input
-                type="number" min="1" step="1"
-                value={form.collection_number}
-                onChange={e => updateCollectionNumber(e.target.value)}
-                placeholder={`Например: ${nextCollectionNumber}`}
-              />
-              <span style={{ fontSize: 11, color: "#8a9e96" }}>
-                Порядковый номер, совпадает с нумерацией в Instagram
-              </span>
-            </label>
-
-            {/* ── Кто привёз ── */}
-            <SectionDivider title="Кто привёз" />
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>
-                  Выбрать из справочника
-                </span>
-                <PersonSelect
-                  value={form.brought_by_person_ids}
-                  onChange={(personIds, persons) => {
-                    updateForm("brought_by_person_ids", personIds || []);
-                    if (Array.isArray(persons) && persons.length > 0) {
-                      updateForm("brought_by", persons.map(p => `${p.first_name} ${p.last_name}`).join(", "));
-                    }
-                  }}
-                />
-              </label>
-            </div>
-
-            {/* Текстовое поле — только если человек не выбран из справочника */}
-            {form.brought_by_person_ids.length === 0 && (
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>
-                    Или введите текстом
-                  </span>
-                  <input
-                    type="text"
-                    value={form.brought_by}
-                    onChange={e => updateForm("brought_by", e.target.value)}
-                    placeholder="Имя или @instagram"
-                  />
-                </label>
-              </div>
-            )}
-
-            {/* ── География ── */}
-            <SectionDivider title="География" />
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>
-                  Страна <span style={{ color: "#dc2626" }}>*</span>
-                </span>
-                <select value={form.country_id} onChange={e => updateCountry(e.target.value)}>
-                  <option value="">Выберите страну</option>
-                  {countryDisplayOptions.map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            {currentCountryHasStates && (
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>Штат / регион</span>
-                <select value={form.state_id} onChange={e => updateState(e.target.value)}>
-                  <option value="">Не выбран</option>
-                  {currentStateOptions.map(s => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-                {statesError && (
-                  <span style={{ fontSize: 11, color: "#dc2626" }}>{statesError}</span>
-                )}
-              </label>
-            )}
-
-            <label style={{
-              display: "grid", gap: 6,
-              gridColumn: currentCountryHasStates ? "auto" : "1 / -1",
-            }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>Город</span>
-              <div style={{ display: "flex", gap: 8 }}>
-                <select
-                  value={form.city_key}
-                  onChange={e => updateCity(e.target.value)}
-                  disabled={!form.country_id || (currentCountryHasStates && !form.state_id)}
-                  style={{ flex: 1 }}
-                >
-                  <option value="">
-                    {!form.country_id
-                      ? "Сначала выберите страну"
-                      : currentCountryHasStates && !form.state_id
-                        ? "Сначала выберите штат"
-                        : "Не выбран"}
-                  </option>
-                  {(() => {
-                    // Count popular cities (those with _mugCount > 0, top 5)
-                    const popular = currentCityOptions.filter(c => c._mugCount > 0).slice(0, 5);
-                    const rest = currentCityOptions.filter(c => !popular.includes(c));
-                    if (popular.length === 0) {
-                      return currentCityOptions.map(c => (
-                        <option key={c.key} value={c.key}>
-                          {getLocalizedOptionLabel(c, language)}
-                        </option>
-                      ));
-                    }
-                    return (
-                      <>
-                        <optgroup label="⭐ Популярные">
-                          {popular.map(c => (
-                            <option key={c.key} value={c.key}>
-                              {getLocalizedOptionLabel(c, language)}
-                            </option>
-                          ))}
-                        </optgroup>
-                        {rest.length > 0 && (
-                          <optgroup label="Все города">
-                            {rest.map(c => (
-                              <option key={c.key} value={c.key}>
-                                {getLocalizedOptionLabel(c, language)}
-                              </option>
-                            ))}
-                          </optgroup>
-                        )}
-                      </>
-                    );
-                  })()}
-                </select>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={!form.country_id || isCreatingCity || (currentCountryHasStates && !form.state_id)}
-                  onClick={() => setIsCityCreatorOpen(true)}
-                  style={{ minWidth: 36, padding: "0 10px" }}
-                  title="Добавить город"
-                >+</button>
-              </div>
-              {citiesError && <span style={{ fontSize: 11, color: "#dc2626" }}>{citiesError}</span>}
-              {!hasDbCities && form.country_id && !(currentCountryHasStates && !form.state_id) && (
-                <span style={{ fontSize: 11, color: "#8a9e96" }}>
-                  Городов пока нет. Нажмите + чтобы добавить.
-                </span>
-              )}
-            </label>
-
-            {isCityCreatorOpen && (
-              <div style={{
-                gridColumn: "1 / -1",
-                padding: "12px 14px", borderRadius: 12,
-                background: "#f9f7f3", border: "1px solid #e2e8e3",
-                display: "grid", gap: 8,
-              }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>Новый город</span>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <input
-                    type="text"
-                    value={newCityName}
-                    onChange={e => setNewCityName(e.target.value)}
-                    placeholder="Название города"
-                    style={{ flex: 1 }}
-                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); createCity(); } }}
-                  />
-                  <button type="button" className="primary-button" onClick={createCity} disabled={isCreatingCity}>
-                    {isCreatingCity ? "Создаём…" : "Создать"}
-                  </button>
-                  <button type="button" className="secondary-button" onClick={closeCityCreator} disabled={isCreatingCity}>
-                    Отмена
-                  </button>
-                </div>
-                {cityCreateError && (
-                  <span style={{ color: "#b91c1c", fontSize: 12 }}>{cityCreateError}</span>
-                )}
-              </div>
-            )}
-
-            {/* ── Характеристики ── */}
-            <SectionDivider title="Характеристики" />
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>Тип / коллекция</span>
-                <TypeSelect
-                  value={form.type_values}
-                  options={typeOptions}
-                  onChange={vals => updateForm("type_values", vals || [])}
-                />
-              </label>
-            </div>
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a", display: "block", marginBottom: 10 }}>
-                Цвета
-              </span>
-              <ColorChips
-                options={COLOR_OPTIONS}
-                values={form.color_keys}
-                onToggle={key => toggleMultiValue("color_keys", key)}
-                language={language}
-              />
-            </div>
-
-            {/* ── История и публикация ── */}
-            <SectionDivider title="История и публикация" />
-
-            <div style={{ gridColumn: "1 / -1" }}>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>История / заметка</span>
-                <textarea
-                  rows="4"
-                  value={form.note}
-                  onChange={e => updateForm("note", e.target.value)}
-                  placeholder="Откуда кружка, интересная история, особенности..."
-                />
-              </label>
-            </div>
-
-            <label style={{
-              display: "flex", alignItems: "center", gap: 10,
-              cursor: "pointer", gridColumn: "1 / -1",
-            }}>
-              <input
-                type="checkbox"
-                checked={form.is_published}
-                onChange={e => updateForm("is_published", e.target.checked)}
-                style={{ width: 18, height: 18 }}
-              />
-              <span style={{ fontSize: 14, color: "#1f2937" }}>
-                Опубликовано (видно на сайте)
-              </span>
-            </label>
-
-          </div>
-
-          {/* Images */}
-          <div style={{ marginTop: 20 }}>
-            <MugImagesManager
-              mugId={form.id}
-              pendingFiles={pendingImageFiles}
-              onPendingFilesChange={setPendingImageFiles}
-              onChanged={async () => { await loadAll(); await onChanged?.(); }}
-            />
-          </div>
-
-          {error && (
-            <div style={{
-              marginTop: 16, padding: "12px 14px", borderRadius: 12,
-              background: "#fef2f2", border: "1px solid #fecaca",
-              color: "#b91c1c", fontSize: 14,
-            }}>
-              {error}
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
-            <button className="secondary-button" type="button" onClick={requestCloseForm} disabled={saving}>
-              Отмена
-            </button>
-            <button className="primary-button" type="submit" disabled={saving}>
-              {saving ? "Сохраняем…" : form.id ? "Сохранить" : "Создать кружку"}
-            </button>
-          </div>
-        </form>
-      </Drawer>
-
-      <ConfirmModal
-        isOpen={isDiscardModalOpen}
-        title="Закрыть без сохранения?"
-        message="Вы внесли изменения. Они будут потеряны если закрыть форму сейчас."
-        confirmLabel="Закрыть без сохранения"
-        cancelLabel="Продолжить редактирование"
-        danger
-        onCancel={() => setIsDiscardModalOpen(false)}
-        onConfirm={closeFormImmediately}
+      <MugTable
+        loading={loading}
+        error={error}
+        isFormOpen={isFormOpen}
+        saving={saving}
+        search={search}
+        onSearch={setSearch}
+        numberFilter={numberFilter}
+        onNumberFilter={setNumberFilter}
+        countryFilter={countryFilter}
+        onCountryFilter={setCountryFilter}
+        cityFilter={cityFilter}
+        onCityFilter={setCityFilter}
+        sortBy={sortBy}
+        onSortBy={setSortBy}
+        filtersOpen={filtersOpen}
+        onToggleFilters={() => setFiltersOpen(p => !p)}
+        activeFilters={activeFilters}
+        countryFilterOptions={countryFilterOptions}
+        cityFilterOptions={cityFilterOptions}
+        filteredMugs={filteredMugs}
+        onEdit={openEditForm}
+        onDelete={deleteMug}
+        onRefresh={loadAll}
+        onCreate={openCreateForm}
       />
+      <MugForm {...mugFormProps} />
     </section>
   );
 }
@@ -1486,6 +934,18 @@ export function MugEditDrawer({ mugId, onClose, onChanged, language = "ru" }) {
       onChanged={onChanged}
       language={language}
       initialEditMugId={mugId}
+      onEmbeddedClose={onClose}
+    />
+  );
+}
+
+// ── MugCreateDrawer — use in CatalogPage to open the create form ───────────
+export function MugCreateDrawer({ onClose, onChanged, language = "ru" }) {
+  return (
+    <MugsAdmin
+      onChanged={onChanged}
+      language={language}
+      initialCreate
       onEmbeddedClose={onClose}
     />
   );

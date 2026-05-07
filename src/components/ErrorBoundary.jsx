@@ -31,6 +31,14 @@ export default class ErrorBoundary extends Component {
                 Произошла ошибка внутри приложения. Пожалуйста, обновите страницу
                 или попробуйте позже.
               </p>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => window.location.reload()}
+                style={{ marginTop: 16 }}
+              >
+                Обновить страницу
+              </button>
             </div>
           </div>
         </div>

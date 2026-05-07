@@ -127,6 +127,7 @@ function Lightbox({ images, startIndex, onClose }) {
               }}
             >
               <img
+                loading="lazy"
                 src={getMugImageUrl(thumb.storage_path)}
                 alt=""
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
@@ -150,6 +151,7 @@ function MugCarousel({ images = [], fallbackAlt = "Mug image" }) {
   }, [images]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   if (!normalizedImages.length) {
@@ -170,11 +172,13 @@ function MugCarousel({ images = [], fallbackAlt = "Mug image" }) {
 
   function goPrev(e) {
     e.stopPropagation();
+    setIsLoading(true);
     setCurrentIndex(prev => prev === 0 ? normalizedImages.length - 1 : prev - 1);
   }
 
   function goNext(e) {
     e.stopPropagation();
+    setIsLoading(true);
     setCurrentIndex(prev => prev === normalizedImages.length - 1 ? 0 : prev + 1);
   }
 
@@ -195,10 +199,14 @@ function MugCarousel({ images = [], fallbackAlt = "Mug image" }) {
             overflow: "hidden",
           }}
         >
+          {isLoading && <div className="mug-carousel-shimmer" />}
           <img
+            key={currentImage.storage_path}
             className="mug-carousel-image"
+            loading="lazy"
             src={getMugImageUrl(currentImage.storage_path)}
             alt={currentImage.alt_text || fallbackAlt}
+            onLoad={() => setIsLoading(false)}
             style={{
               width: "100%",
               height: "100%",
@@ -207,6 +215,8 @@ function MugCarousel({ images = [], fallbackAlt = "Mug image" }) {
               display: "block",
               pointerEvents: "none",
               userSelect: "none",
+              opacity: isLoading ? 0 : 1,
+              transition: "opacity 0.25s",
             }}
           />
 
