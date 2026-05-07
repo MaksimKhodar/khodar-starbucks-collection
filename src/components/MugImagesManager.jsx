@@ -21,6 +21,7 @@ import {
   reorderMugImages,
   mugImagePublicUrl,
 } from "../lib/mugImages";
+import ImageCropperModal from "./ImageCropperModal";
 
 function formatFileSize(bytes = 0) {
   if (!bytes) return "0 KB";
@@ -136,12 +137,18 @@ function MugImagesManager({
   onChanged,
   pendingFiles = [],
   onPendingFilesChange,
+  language = "ru",
 }) {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [busyImageId, setBusyImageId] = useState("");
   const [error, setError] = useState("");
+
+  // Crop queue for "add" flow: process files one at a time, collect blobs
+  const [cropQueue, setCropQueue] = useState([]); // Files waiting to be cropped
+  // Crop context for "replace" flow
+  const [cropReplaceCtx, setCropReplaceCtx] = useState(null); // { image, file }
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -176,38 +183,28 @@ function MugImagesManager({
     loadImages();
   }, [mugId, loadImages]);
 
-  function appendPendingFiles(files) {
-    const nextFiles = Array.from(files || []);
-    if (!nextFiles.length) return;
-
-    if (pendingFiles.length + nextFiles.length > 10) {
-      setError("У одной кружки может быть максимум 10 изображений.");
-      return;
-    }
-
-    setError("");
-    onPendingFilesChange?.([...(pendingFiles || []), ...nextFiles]);
-  }
-
-  async function handleUpload(event) {
-    const files = Array.from(event.target.files || []);
-    if (!files.length) return;
+  async function submitAddBlobs(blobs) {
+    const files = blobs.map((blob, i) =>
+      new File([blob], `photo-${i + 1}.png`, { type: "image/png" })
+    );
 
     if (!mugId) {
-      appendPendingFiles(files);
-      event.target.value = "";
+      if (pendingFiles.length + files.length > 10) {
+        setError("У одной кружки может быть максимум 10 изображений.");
+        return;
+      }
+      setError("");
+      onPendingFilesChange?.([...(pendingFiles || []), ...files]);
       return;
     }
 
     if (images.length + files.length > 10) {
       setError("У одной кружки может быть максимум 10 изображений.");
-      event.target.value = "";
       return;
     }
 
     setUploading(true);
     setError("");
-
     try {
       await uploadImagesForMug(mugId, files, images.length);
       await loadImages();
@@ -216,8 +213,70 @@ function MugImagesManager({
       setError(err.message || "Не удалось загрузить изображения.");
     } finally {
       setUploading(false);
-      event.target.value = "";
     }
+  }
+
+  // Accumulator for multi-file crop (lives in state to survive re-renders between crops)
+  const [accumulatedBlobs, setAccumulatedBlobs] = useState([]);
+
+  // Collect blob from each cropped file; submit all once the queue is empty.
+  function handleAddCropSimple(blob) {
+    const newBlobs = [...accumulatedBlobs, blob];
+    const newQueue = cropQueue.slice(1);
+
+    if (newQueue.length === 0) {
+      setCropQueue([]);
+      setAccumulatedBlobs([]);
+      submitAddBlobs(newBlobs);
+    } else {
+      setAccumulatedBlobs(newBlobs);
+      setCropQueue(newQueue);
+    }
+  }
+
+  function handleCancelAddCrop() {
+    setCropQueue([]);
+    setAccumulatedBlobs([]);
+  }
+
+  async function handleReplaceCrop(blob) {
+    if (!cropReplaceCtx) return;
+    const { image } = cropReplaceCtx;
+    setCropReplaceCtx(null);
+    setBusyImageId(image.id);
+    setError("");
+    try {
+      const file = new File([blob], "photo.png", { type: "image/png" });
+      await replaceMugImage(image, file);
+      await loadImages();
+      await onChanged?.();
+    } catch (err) {
+      setError(err.message || "Не удалось заменить изображение.");
+    } finally {
+      setBusyImageId("");
+    }
+  }
+
+  // "Add photo" — queue files through cropper instead of uploading directly
+  function handleUpload(event) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!files.length) return;
+
+    const currentCount = mugId ? images.length : pendingFiles.length;
+    if (currentCount + files.length > 10) {
+      setError("У одной кружки может быть максимум 10 изображений.");
+      return;
+    }
+
+    setError("");
+    setAccumulatedBlobs([]);
+    setCropQueue(files);
+  }
+
+  // "Replace" — route through cropper
+  function handleReplaceStart(image, file) {
+    setCropReplaceCtx({ image, file });
   }
 
   async function handleDelete(image) {
@@ -233,21 +292,6 @@ function MugImagesManager({
       await onChanged?.();
     } catch (err) {
       setError(err.message || "Не удалось удалить изображение.");
-    } finally {
-      setBusyImageId("");
-    }
-  }
-
-  async function handleReplace(image, file) {
-    setBusyImageId(image.id);
-    setError("");
-
-    try {
-      await replaceMugImage(image, file);
-      await loadImages();
-      await onChanged?.();
-    } catch (err) {
-      setError(err.message || "Не удалось заменить изображение.");
     } finally {
       setBusyImageId("");
     }
@@ -374,12 +418,33 @@ function MugImagesManager({
                   image={image}
                   busy={uploading || busyImageId === image.id}
                   onDelete={handleDelete}
-                  onReplace={handleReplace}
+                  onReplace={handleReplaceStart}
                 />
               ))}
             </div>
           </SortableContext>
         </DndContext>
+      )}
+
+      {/* Crop modal for "add" queue — shown for each file in sequence */}
+      {cropQueue.length > 0 && (
+        <ImageCropperModal
+          key={cropQueue[0].name + cropQueue[0].size}
+          file={cropQueue[0]}
+          language={language}
+          onCrop={handleAddCropSimple}
+          onCancel={handleCancelAddCrop}
+        />
+      )}
+
+      {/* Crop modal for "replace" flow */}
+      {cropReplaceCtx && (
+        <ImageCropperModal
+          file={cropReplaceCtx.file}
+          language={language}
+          onCrop={handleReplaceCrop}
+          onCancel={() => setCropReplaceCtx(null)}
+        />
       )}
     </section>
   );

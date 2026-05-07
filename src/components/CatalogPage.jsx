@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import MugCarousel from "./MugCarousel";
-import { MugEditDrawer } from "./MugsAdmin";
+import { MugEditDrawer, MugCreateDrawer } from "./MugsAdmin";
+import ConfirmModal from "./ConfirmModal";
+import { supabase } from "../lib/supabase";
 import { formatDate, normalizeIso2 } from "../lib/utils";
 
 const EMPTY_VALUE = "";
@@ -17,12 +19,13 @@ const LABELS = {
     allCountries: "Все страны", allStates: "Все штаты", allCities: "Все города",
     allCollections: "Все коллекции", allColors: "Все цвета",
     newest: "Сначала новые", oldest: "Сначала старые", titleAsc: "Название А–Я", numberDesc: "По номеру ↓", numberAsc: "По номеру ↑",
-    found: "Найдено", mugs: "кружек", reset: "Сбросить всё",
+    found: "Найдено", mugs: "кружек", reset: "Сбросить всё", addMug: "Добавить кружку",
     noResultsTitle: "Ничего не найдено", noResultsText: "Попробуй изменить фильтры.",
     type: "Тип", receivedAt: "Получена", broughtBy: "Привёз",
     note: "История", collections: "Коллекция", colors: "Цвет", unknown: "—",
     showMore: "Читать далее", showLess: "Свернуть",
     filters: "Фильтры", sorting: "Сортировка", clearAll: "Сбросить всё",
+    show: "Показать",
   },
   en: {
     title: "Mug catalog",
@@ -33,12 +36,13 @@ const LABELS = {
     allCountries: "All countries", allStates: "All states", allCities: "All cities",
     allCollections: "All collections", allColors: "All colors",
     newest: "Newest first", oldest: "Oldest first", titleAsc: "Title A–Z", numberDesc: "By number ↓", numberAsc: "By number ↑",
-    found: "Found", mugs: "mugs", reset: "Reset all",
+    found: "Found", mugs: "mugs", reset: "Reset all", addMug: "Add mug",
     noResultsTitle: "Nothing found", noResultsText: "Try changing the filters.",
     type: "Type", receivedAt: "Received", broughtBy: "Brought by",
     note: "Story", collections: "Collection", colors: "Color", unknown: "—",
     showMore: "Read more", showLess: "Show less",
     filters: "Filters", sorting: "Sort", clearAll: "Clear all",
+    show: "Show",
   },
 };
 
@@ -88,6 +92,44 @@ const COLOR_SWATCHES = {
   multicolor: "linear-gradient(135deg,#f44336,#ff9800,#ffeb3b,#4caf50,#2196f3)",
   navy: "#1a237e",
 };
+
+// ── Module-level style constants ──────────────────────────────────────────────
+
+const CARD_STYLE = {
+  display: "flex", flexDirection: "column",
+  background: "#ffffff", borderRadius: 16,
+  border: "1px solid #e8e2d9", overflow: "hidden",
+  transition: "box-shadow 0.2s, transform 0.2s",
+  isolation: "isolate",
+};
+
+const CARD_BODY_STYLE = {
+  flex: 1, display: "flex", flexDirection: "column",
+  padding: "12px 14px 14px", gap: 8,
+  background: "#fff", position: "relative", zIndex: 1,
+};
+
+const COLLECTION_BADGE_STYLE = {
+  background: "rgba(21,49,38,0.78)", color: "#fff",
+  fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 999,
+  backdropFilter: "blur(4px)",
+};
+
+const FILTER_OPTION_BASE = {
+  display: "flex", alignItems: "center", justifyContent: "space-between",
+  padding: "6px 8px", borderRadius: 8, border: "none",
+  cursor: "pointer", fontSize: 13,
+  textAlign: "left", transition: "background 0.1s",
+};
+
+const FILTER_TAG_STYLE = {
+  display: "flex", alignItems: "center", gap: 5,
+  padding: "3px 10px 3px 8px", borderRadius: 999,
+  background: "#e8f5ee", color: "#1a6340",
+  border: "none", fontSize: 12, fontWeight: 500, cursor: "pointer",
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function normalizeText(v) { return String(v || "").trim().toLowerCase(); }
 function normalizeToken(v) { return String(v || "").trim().toLowerCase().replace(/\s+/g, "_").replace(/-+/g, "_"); }
@@ -151,20 +193,15 @@ function renderBroughtBy(text) {
 
 // ── MugCard ──────────────────────────────────────────────────────────────────
 
-function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, colorTokens, getCollectionLabel, getColorLabel, isAdmin, onEdit }) {
+function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, colorTokens, getCollectionLabel, getColorLabel, isAdmin, onEdit, onDelete }) {
   const [noteExpanded, setNoteExpanded] = useState(false);
   const note = mug.note || "";
   const noteShort = note.length > NOTE_CLAMP ? note.slice(0, NOTE_CLAMP).trimEnd() + "…" : note;
   const hasLongNote = note.length > NOTE_CLAMP;
 
   return (
-    <article style={{
-      display: "flex", flexDirection: "column",
-      background: "#ffffff", borderRadius: 16,
-      border: "1px solid #e8e2d9", overflow: "hidden",
-      transition: "box-shadow 0.2s, transform 0.2s",
-      isolation: "isolate",
-    }}
+    <article
+      style={CARD_STYLE}
       onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 6px 24px rgba(0,0,0,0.09)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
       onMouseLeave={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "translateY(0)"; }}
     >
@@ -173,12 +210,10 @@ function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, 
         flexShrink: 0, background: "#f5f0e8", position: "relative", overflow: "hidden",
         aspectRatio: "1 / 1", width: "100%",
       }}>
-        {/* Centered image wrapper */}
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <MugCarousel images={mug.mug_images || []} fallbackAlt={mug.title} />
         </div>
 
-        {/* Collection number badge */}
         {mug.collection_number && (
           <div style={{
             position: "absolute", top: 8, left: 8,
@@ -190,36 +225,47 @@ function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, 
           </div>
         )}
 
-        {/* Admin edit button */}
         {isAdmin && (
-          <button
-            type="button"
-            onClick={e => { e.stopPropagation(); onEdit?.(mug); }}
-            style={{
-              position: "absolute", bottom: 8, right: 8, zIndex: 3,
-              background: "rgba(31,111,84,0.9)", color: "#fff",
-              border: "none", borderRadius: 8, padding: "4px 10px",
-              fontSize: 11, fontWeight: 600, cursor: "pointer",
-              backdropFilter: "blur(4px)",
-              display: "flex", alignItems: "center", gap: 4,
-            }}
-          >
-            ✎ Изменить
-          </button>
+          <div style={{
+            position: "absolute", bottom: 8, left: 8, right: 8, zIndex: 3,
+            display: "flex", justifyContent: "space-between", gap: 4,
+          }}>
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onDelete?.(mug); }}
+              style={{
+                background: "rgba(185,28,28,0.85)", color: "#fff",
+                border: "none", borderRadius: 8, padding: "4px 10px",
+                fontSize: 11, fontWeight: 600, cursor: "pointer",
+                backdropFilter: "blur(4px)",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              🗑 Удалить
+            </button>
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onEdit?.(mug); }}
+              style={{
+                background: "rgba(31,111,84,0.9)", color: "#fff",
+                border: "none", borderRadius: 8, padding: "4px 10px",
+                fontSize: 11, fontWeight: 600, cursor: "pointer",
+                backdropFilter: "blur(4px)",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              ✎ Изменить
+            </button>
+          </div>
         )}
 
-        {/* Collection type badge */}
         {collectionTokens.length > 0 && (
           <div style={{
             position: "absolute", top: 8, right: 8, zIndex: 2,
             display: "flex", gap: 3, flexWrap: "wrap", maxWidth: "60%", justifyContent: "flex-end",
           }}>
             {collectionTokens.slice(0, 2).map(token => (
-              <span key={token} style={{
-                background: "rgba(21,49,38,0.78)", color: "#fff",
-                fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 999,
-                backdropFilter: "blur(4px)",
-              }}>
+              <span key={token} style={COLLECTION_BADGE_STYLE}>
                 {getCollectionLabel(token)}
               </span>
             ))}
@@ -227,14 +273,8 @@ function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, 
         )}
       </div>
 
-      {/* Body — clear separation from photo */}
-      <div style={{
-        flex: 1, display: "flex", flexDirection: "column",
-        padding: "12px 14px 14px", gap: 8,
-        background: "#fff", position: "relative", zIndex: 1,
-      }}>
-
-        {/* Title + date */}
+      {/* Body */}
+      <div style={CARD_BODY_STYLE}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6 }}>
           <h3 style={{
             margin: 0, fontSize: 13, fontWeight: 600, color: "#153126",
@@ -249,19 +289,16 @@ function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, 
           )}
         </div>
 
-        {/* Geo */}
         <div style={{ fontSize: 12, color: "#5f6f66", lineHeight: 1.4 }}>
           {[countryName, stateName, cityText !== "—" ? cityText : null].filter(Boolean).join(" · ")}
         </div>
 
-        {/* Who brought */}
         {mug.brought_by && (
           <div style={{ fontSize: 12, color: "#8a9e96" }}>
             ✈ {renderBroughtBy(mug.brought_by)}
           </div>
         )}
 
-        {/* Colors */}
         {colorTokens.length > 0 && (
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
             {colorTokens.map(token => (
@@ -279,7 +316,6 @@ function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, 
           </div>
         )}
 
-        {/* Note */}
         {note && (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", marginTop: 2 }}>
             <p style={{ margin: 0, fontSize: 11, color: "#6b7e74", lineHeight: 1.55, fontStyle: "italic" }}>
@@ -337,12 +373,10 @@ function FilterSection({ title, options, selected, onSelect, withSwatches = fals
                 type="button"
                 onClick={() => onSelect(active ? EMPTY_VALUE : opt.value)}
                 style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "6px 8px", borderRadius: 8, border: "none",
+                  ...FILTER_OPTION_BASE,
                   background: active ? "#e8f5ee" : "transparent",
                   color: active ? "#1a6340" : "#374151",
-                  cursor: "pointer", fontSize: 13, fontWeight: active ? 600 : 400,
-                  textAlign: "left", transition: "background 0.1s",
+                  fontWeight: active ? 600 : 400,
                 }}
                 onMouseEnter={e => { if (!active) e.currentTarget.style.background = "#f5f0e8"; }}
                 onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
@@ -384,6 +418,33 @@ function FilterSection({ title, options, selected, onSelect, withSwatches = fals
         </div>
       )}
     </div>
+  );
+}
+
+// ── SidebarContent — defined outside CatalogPage to prevent remount on render ─
+
+function SidebarContent({
+  ui,
+  countryOptions, stateOptions, cityOptions, collectionOptions, colorOptions,
+  countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter,
+  onCountryChange, onStateChange, onCityChange, onCollectionChange, onColorChange,
+}) {
+  return (
+    <>
+      <FilterSection title={ui.country} options={countryOptions} selected={countryFilter} onSelect={onCountryChange} />
+      {stateOptions.length > 0 && (
+        <FilterSection title={ui.state} options={stateOptions} selected={stateFilter} onSelect={onStateChange} />
+      )}
+      {cityOptions.length > 0 && (
+        <FilterSection title={ui.city} options={cityOptions} selected={cityFilter} onSelect={onCityChange} />
+      )}
+      {collectionOptions.length > 0 && (
+        <FilterSection title={ui.collection} options={collectionOptions} selected={collectionFilter} onSelect={onCollectionChange} />
+      )}
+      {colorOptions.length > 0 && (
+        <FilterSection title={ui.color} options={colorOptions} selected={colorFilter} onSelect={onColorChange} withSwatches />
+      )}
+    </>
   );
 }
 
@@ -433,10 +494,14 @@ function CatalogPage({
   language = "ru",
   isAdmin = false,
   onMugChanged,
+  onMugDeleted,
 }) {
   const ui = LABELS[language] || LABELS.ru;
 
   const [editingMug, setEditingMug] = useState(null);
+  const [isAddingMug, setIsAddingMug] = useState(false);
+  const [deletingMug, setDeletingMug] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < SIDEBAR_BREAKPOINT);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -495,7 +560,6 @@ function CatalogPage({
         ? (city.name_en || city.name_ru || mug.city || ui.unknown)
         : (city.name_ru || city.name_en || mug.city || ui.unknown);
     }
-    // Legacy: use mug.city text directly (already localized in DB)
     return mug.city || mug.city_key || ui.unknown;
   }
   function getCollectionLabel(token) { return COLLECTION_LABELS[language]?.[token] || COLLECTION_LABELS.ru[token] || prettifyToken(token); }
@@ -543,7 +607,6 @@ function CatalogPage({
       const key = makeCityFilterKey(mug);
       if (!key) return;
       if (!map.has(key)) {
-        // Prefer name from cities table (localized), fallback to mug.city
         const cityRecord = citiesById.get(String(mug.city_id || ""));
         const label = cityRecord
           ? (language === "en" ? (cityRecord.name_en || cityRecord.name_ru) : (cityRecord.name_ru || cityRecord.name_en)) || mug.city || key
@@ -613,6 +676,16 @@ function CatalogPage({
     return filteredMugs.slice(start, start + perPage);
   }, [filteredMugs, page, perPage]);
 
+  async function handleDeleteConfirm() {
+    if (!deletingMug) return;
+    setIsDeleting(true);
+    const { error } = await supabase.from("mugs").delete().eq("id", deletingMug.id);
+    setIsDeleting(false);
+    if (error) { alert(error.message || "Не удалось удалить кружку."); setDeletingMug(null); return; }
+    onMugDeleted?.(deletingMug.id);
+    setDeletingMug(null);
+  }
+
   function handleCountryChange(v) { setCountryFilter(v); setStateFilter(EMPTY_VALUE); setCityFilter(EMPTY_VALUE); setPage(1); }
   function handleStateChange(v) { setStateFilter(v); setCityFilter(EMPTY_VALUE); setPage(1); }
 
@@ -622,7 +695,6 @@ function CatalogPage({
     setSortMode("newest");
   }
 
-  // Active filter tags
   const activeTags = useMemo(() => {
     const tags = [];
     if (countryFilter) {
@@ -648,23 +720,16 @@ function CatalogPage({
 
   const sortLabel = { newest: ui.newest, oldest: ui.oldest, titleAsc: ui.titleAsc, numberDesc: ui.numberDesc, numberAsc: ui.numberAsc }[sortMode] || ui.numberDesc;
 
-  const SidebarContent = () => (
-    <>
-      <FilterSection title={ui.country} options={countryOptions} selected={countryFilter} onSelect={handleCountryChange} />
-      {stateOptions.length > 0 && (
-        <FilterSection title={ui.state} options={stateOptions} selected={stateFilter} onSelect={handleStateChange} />
-      )}
-      {cityOptions.length > 0 && (
-        <FilterSection title={ui.city} options={cityOptions} selected={cityFilter} onSelect={setCityFilter} />
-      )}
-      {collectionOptions.length > 0 && (
-        <FilterSection title={ui.collection} options={collectionOptions} selected={collectionFilter} onSelect={setCollectionFilter} />
-      )}
-      {colorOptions.length > 0 && (
-        <FilterSection title={ui.color} options={colorOptions} selected={colorFilter} onSelect={setColorFilter} withSwatches />
-      )}
-    </>
-  );
+  const sidebarProps = {
+    ui,
+    countryOptions, stateOptions, cityOptions, collectionOptions, colorOptions,
+    countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter,
+    onCountryChange: handleCountryChange,
+    onStateChange: handleStateChange,
+    onCityChange: setCityFilter,
+    onCollectionChange: setCollectionFilter,
+    onColorChange: setColorFilter,
+  };
 
   return (
     <>
@@ -687,7 +752,7 @@ function CatalogPage({
               </button>
             )}
           </div>
-          <SidebarContent />
+          <SidebarContent {...sidebarProps} />
         </div>
       )}
 
@@ -768,6 +833,21 @@ function CatalogPage({
           <span style={{ fontSize: 12, color: "#8a9e96", whiteSpace: "nowrap" }}>
             {ui.found}: <strong style={{ color: "#153126" }}>{filteredMugs.length}</strong> {ui.mugs}
           </span>
+
+          {/* UI-only guard. Real authorization is enforced by Supabase RLS policies. */}
+          {isAdmin && !isMobile && (
+            <button
+              type="button"
+              onClick={() => setIsAddingMug(true)}
+              style={{
+                padding: "9px 16px", border: "none", borderRadius: 10,
+                background: "#1f6f54", color: "#fff",
+                fontSize: 13, fontWeight: 600, cursor: "pointer", flexShrink: 0,
+              }}
+            >
+              + {ui.addMug}
+            </button>
+          )}
         </div>
 
         {/* Active filter tags */}
@@ -777,17 +857,7 @@ function CatalogPage({
             padding: "8px 16px", background: "#fff", borderBottom: "0.5px solid #e8e2d9",
           }}>
             {activeTags.map(tag => (
-              <button
-                key={tag.key}
-                type="button"
-                onClick={tag.clear}
-                style={{
-                  display: "flex", alignItems: "center", gap: 5,
-                  padding: "3px 10px 3px 8px", borderRadius: 999,
-                  background: "#e8f5ee", color: "#1a6340",
-                  border: "none", fontSize: 12, fontWeight: 500, cursor: "pointer",
-                }}
-              >
+              <button key={tag.key} type="button" onClick={tag.clear} style={FILTER_TAG_STYLE}>
                 {tag.label}
                 <span style={{ fontSize: 14, opacity: 0.6, lineHeight: 1 }}>×</span>
               </button>
@@ -803,7 +873,7 @@ function CatalogPage({
         )}
 
         {/* Grid */}
-            {filteredMugs.length === 0 ? (
+        {filteredMugs.length === 0 ? (
           <div style={{ padding: 48, textAlign: "center" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>☕</div>
             <h2 style={{ fontSize: 18, color: "#153126", marginBottom: 8 }}>{ui.noResultsTitle}</h2>
@@ -818,7 +888,7 @@ function CatalogPage({
         ) : (
           <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? "160px" : "220px"}, 1fr))`,
             gap: 14, padding: 16,
           }}>
             {pagedMugs.map(mug => {
@@ -838,6 +908,7 @@ function CatalogPage({
                   getColorLabel={getColorLabel}
                   isAdmin={isAdmin}
                   onEdit={setEditingMug}
+                  onDelete={setDeletingMug}
                 />
               );
             })}
@@ -847,7 +918,7 @@ function CatalogPage({
 
       {/* ── Mobile filter sheet ── */}
       <MobileFilterSheet isOpen={mobileFiltersOpen} onClose={() => setMobileFiltersOpen(false)} title={ui.filters}>
-        <SidebarContent />
+        <SidebarContent {...sidebarProps} />
         <div style={{ paddingTop: 16, display: "flex", gap: 10 }}>
           <button type="button" onClick={resetFilters} style={{
             flex: 1, padding: "11px", border: "0.5px solid #e2ddd4", borderRadius: 10,
@@ -857,7 +928,7 @@ function CatalogPage({
             flex: 2, padding: "11px", border: "none", borderRadius: 10,
             background: "#1f6f54", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
           }}>
-            Показать {filteredMugs.length} {ui.mugs}
+            {ui.show} {filteredMugs.length} {ui.mugs}
           </button>
         </div>
       </MobileFilterSheet>
@@ -889,9 +960,11 @@ function CatalogPage({
       {/* Pagination */}
       {filteredMugs.length > 0 && (
         <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
+          display: "flex", alignItems: isMobile ? "stretch" : "center",
+          flexDirection: isMobile ? "column" : "row",
+          justifyContent: "space-between",
           padding: "16px 20px", borderTop: "0.5px solid #e8e2d9",
-          background: "#fff", flexWrap: "wrap", gap: 12,
+          background: "#fff", gap: 12,
         }}>
           {/* Per page selector */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#5f6f66" }}>
@@ -929,7 +1002,6 @@ function CatalogPage({
               }}
             >‹</button>
 
-            {/* Page numbers */}
             <div style={{ display: "flex", gap: 4 }}>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
@@ -974,6 +1046,8 @@ function CatalogPage({
         </div>
       )}
 
+      {/* UI-only guard. Real authorization is enforced by Supabase RLS policies. */}
+
       {/* Admin inline edit drawer */}
       {isAdmin && editingMug && (
         <MugEditDrawer
@@ -983,6 +1057,47 @@ function CatalogPage({
           onChanged={() => { onMugChanged?.(editingMug?.id); setEditingMug(null); }}
         />
       )}
+
+      {/* Admin create drawer */}
+      {isAdmin && isAddingMug && (
+        <MugCreateDrawer
+          language={language}
+          onClose={() => setIsAddingMug(false)}
+          onChanged={() => { setIsAddingMug(false); onMugChanged?.(); }}
+        />
+      )}
+
+      {/* Mobile FAB — only for admins on mobile */}
+      {isAdmin && isMobile && (
+        <button
+          type="button"
+          onClick={() => setIsAddingMug(true)}
+          style={{
+            position: "fixed", bottom: 80, right: 20, zIndex: 200,
+            width: 52, height: 52, borderRadius: "50%",
+            background: "#1f6f54", color: "#fff",
+            border: "none", fontSize: 28, lineHeight: 1,
+            cursor: "pointer",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+          aria-label={ui.addMug}
+        >
+          +
+        </button>
+      )}
+
+      {/* Delete confirmation */}
+      <ConfirmModal
+        isOpen={!!deletingMug}
+        title="Удалить кружку?"
+        message={`«${deletingMug?.title}» будет удалена без возможности восстановления.`}
+        confirmLabel={isDeleting ? "Удаляем…" : "Удалить"}
+        cancelLabel="Отмена"
+        danger
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => { if (!isDeleting) setDeletingMug(null); }}
+      />
     </>
   );
 }

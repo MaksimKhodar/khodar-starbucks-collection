@@ -37,7 +37,7 @@ function Avatar({ person, size = 80 }) {
   const base = import.meta.env.VITE_SUPABASE_URL;
   if (person.avatar_image_path) {
     return (
-      <img
+      <img loading="lazy"
         src={`${base}/storage/v1/object/public/mug-images/${person.avatar_image_path}`}
         alt={getDisplayName(person)}
         style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
@@ -207,7 +207,7 @@ function PersonModal({ person, mugs, countries, language, isAdmin, onClose, onSa
                         onMouseLeave={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.transform = "translateY(0)"; }}
                       >
                         {img ? (
-                          <img
+                          <img loading="lazy"
                             src={`${base}/storage/v1/object/public/mug-images/${img.storage_path}`}
                             alt={mug.title}
                             style={{ width: "100%", aspectRatio: "1/1", objectFit: "cover", display: "block" }}
@@ -262,7 +262,7 @@ function PersonModal({ person, mugs, countries, language, isAdmin, onClose, onSa
             {/* Avatar upload */}
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <Avatar person={{ ...person, ...form, avatar_image_path: avatarPreview ? null : form.avatar_image_path }} size={56} />
-              {avatarPreview && <img src={avatarPreview} alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover" }} />}
+              {avatarPreview && <img loading="lazy" src={avatarPreview} alt="" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover" }} />}
               <label style={{ padding: "7px 14px", background: "#f5f0e8", border: "0.5px solid #e2ddd4", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>
                 Выбрать фото
                 <input type="file" accept="image/*" hidden onChange={e => { const f = e.target.files?.[0]; if (f) setCropSource(f); }} />
@@ -473,7 +473,7 @@ function PeoplePage({ mugs = [], countries = [], isAdmin = false, language = "ru
                   {/* Photo */}
                   <div style={{ aspectRatio: "1/1", background: "#e8e1d7", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {person.avatar_image_path ? (
-                      <img src={`${base}/storage/v1/object/public/mug-images/${person.avatar_image_path}`}
+                      <img loading="lazy" src={`${base}/storage/v1/object/public/mug-images/${person.avatar_image_path}`}
                         alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     ) : (
                       <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#1f6f54", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 700 }}>

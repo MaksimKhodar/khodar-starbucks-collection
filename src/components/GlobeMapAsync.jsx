@@ -19,7 +19,7 @@ function loadGlobeMap() {
 }
 
 function GlobeMapAsync(props) {
-  const [LoadedComponent, setLoadedComponent] = useState(() => GlobeMapModule);
+  const [isLoaded, setIsLoaded] = useState(!!GlobeMapModule);
 
   const isActive =
     typeof props.isActive === "boolean"
@@ -29,13 +29,12 @@ function GlobeMapAsync(props) {
       : true;
 
   useEffect(() => {
+    if (GlobeMapModule) return;
     let cancelled = false;
 
     loadGlobeMap()
-      .then((component) => {
-        if (!cancelled) {
-          setLoadedComponent(() => component);
-        }
+      .then(() => {
+        if (!cancelled) setIsLoaded(true);
       })
       .catch((error) => {
         console.error("Не удалось загрузить GlobeMap:", error);
@@ -46,7 +45,7 @@ function GlobeMapAsync(props) {
     };
   }, []);
 
-  if (!LoadedComponent) {
+  if (!isLoaded || !GlobeMapModule) {
     return (
       <div
         style={{
@@ -98,7 +97,7 @@ function GlobeMapAsync(props) {
   }
 
   return (
-    <LoadedComponent
+    <GlobeMapModule
       {...props}
       isActive={isActive}
       selectedCountryCode={

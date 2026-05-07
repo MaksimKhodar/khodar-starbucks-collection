@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { uploadMugImage } from "../lib/storage";
-import ImageCropper from "./ImageCropper";
+import ImageCropperModal from "./ImageCropperModal";
 
 const emptyForm = {
   id: null,
@@ -378,8 +378,15 @@ function PeopleAdmin({ onChanged }) {
               </label>
             </div>
             {cropSourceFile && (
-              <ImageCropper file={cropSourceFile} onCancel={() => setCropSourceFile(null)}
-                onCrop={croppedFile => { setAvatarFile(croppedFile); setCropSourceFile(null); }} />
+              <ImageCropperModal
+                file={cropSourceFile}
+                language="ru"
+                onCancel={() => setCropSourceFile(null)}
+                onCrop={blob => {
+                  setAvatarFile(new File([blob], cropSourceFile.name, { type: "image/png" }));
+                  setCropSourceFile(null);
+                }}
+              />
             )}
           </div>
 
