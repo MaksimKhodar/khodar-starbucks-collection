@@ -519,33 +519,94 @@ function AppContent() {
           {/* ── Hero ── */}
           <section style={{
             display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) minmax(0, 3fr)",
+            gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 3fr)",
             background: "#fff",
             borderBottom: "0.5px solid #e8e2d9",
           }}>
 
             {/* Left — info panel */}
             <div style={{
-              padding: isMobile ? "24px 20px 16px" : "40px 32px 40px 28px",
-              display: "flex", flexDirection: "column", gap: isMobile ? 16 : 24,
+              display: "flex", flexDirection: "column", minWidth: 0,
               borderRight: isMobile ? "none" : "0.5px solid #e8e2d9",
               borderBottom: isMobile ? "0.5px solid #e8e2d9" : "none",
             }}>
 
-              <div>
-                <p style={{ fontSize: 11, fontWeight: 700, color: "#1f6f54", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
-                  {h.eyebrow}
-                </p>
-                <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color: "#153126", lineHeight: 1.3, marginBottom: 14, whiteSpace: "pre-line" }}>
-                  {h.title}
-                </h1>
-                <p style={{ fontSize: 13, color: "#5f6f66", lineHeight: 1.7 }}>
-                  {h.text}
-                </p>
+              {/* Padded text + stats (desktop) + admin pills */}
+              <div style={{
+                padding: isMobile ? "24px 20px 16px" : "40px 32px 40px 28px",
+                display: "flex", flexDirection: "column", gap: isMobile ? 16 : 24,
+              }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: "#1f6f54", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+                    {h.eyebrow}
+                  </p>
+                  <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color: "#153126", lineHeight: 1.3, marginBottom: 14, whiteSpace: "pre-line" }}>
+                    {h.title}
+                  </h1>
+                  <p style={{ fontSize: 13, color: "#5f6f66", lineHeight: 1.7 }}>
+                    {h.text}
+                  </p>
+                </div>
+
+                {/* Desktop stats only */}
+                {!isMobile && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+                    <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                        <span style={{ fontSize: 32, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{mugs.length}</span>
+                        <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat1label}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
+                        <span style={{ fontSize: 32, fontWeight: 700, color: "#1f6f54", lineHeight: 1 }}>{countriesWithMugsCount}</span>
+                        <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat2label(countriesWithMugsCount, countriesWithStarbucksCount)}</span>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 999, background: "#e8e2d9", overflow: "hidden" }}>
+                        <div style={{
+                          height: "100%", borderRadius: 999, background: "#1f6f54",
+                          width: `${Math.round((countriesWithMugsCount / Math.max(countriesWithStarbucksCount, 1)) * 100)}%`,
+                          transition: "width 0.6s ease",
+                        }} />
+                      </div>
+                      <div style={{ marginTop: 5, fontSize: 11, color: "#8a9e96" }}>
+                        {h.stat2sub(countriesWithStarbucksCount - countriesWithMugsCount)}
+                      </div>
+                    </div>
+
+                    <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                        <span style={{ fontSize: 32, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{visibleFriendsCount}</span>
+                        <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat3label}</span>
+                      </div>
+                      <div style={{ marginTop: 4, fontSize: 11, color: "#8a9e96" }}>{h.stat3sub}</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Admin pills */}
+                {isAdminAuthenticated && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {[
+                      { key: "countries", labelRu: "Страны", labelEn: "Countries" },
+                      { key: "mugs", labelRu: "Кружки", labelEn: "Mugs" },
+                      { key: "people", labelRu: "Люди", labelEn: "People" },
+                    ].map(item => (
+                      <button key={item.key} type="button" onClick={() => openAdminView(item.key)} style={{
+                        padding: "5px 12px", border: "0.5px solid #1f6f54", borderRadius: 999,
+                        background: "transparent", color: "#1f6f54", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      }}>
+                        {language === "en" ? item.labelEn : item.labelRu}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* Stats blocks — vertical on desktop, horizontal scroll on mobile */}
-              {isMobile ? (
+              {/* Mobile stats bar — outside padded wrapper so overflowX: auto works correctly */}
+              {isMobile && (
                 <MobileStatsBar
                   mugsCount={mugs.length}
                   countriesWithMugsCount={countriesWithMugsCount}
@@ -553,59 +614,6 @@ function AppContent() {
                   visibleFriendsCount={visibleFriendsCount}
                   h={h}
                 />
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-                  <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                      <span style={{ fontSize: 32, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{mugs.length}</span>
-                      <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat1label}</span>
-                    </div>
-                  </div>
-
-                  <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
-                      <span style={{ fontSize: 32, fontWeight: 700, color: "#1f6f54", lineHeight: 1 }}>{countriesWithMugsCount}</span>
-                      <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat2label(countriesWithMugsCount, countriesWithStarbucksCount)}</span>
-                    </div>
-                    <div style={{ height: 5, borderRadius: 999, background: "#e8e2d9", overflow: "hidden" }}>
-                      <div style={{
-                        height: "100%", borderRadius: 999, background: "#1f6f54",
-                        width: `${Math.round((countriesWithMugsCount / Math.max(countriesWithStarbucksCount, 1)) * 100)}%`,
-                        transition: "width 0.6s ease",
-                      }} />
-                    </div>
-                    <div style={{ marginTop: 5, fontSize: 11, color: "#8a9e96" }}>
-                      {h.stat2sub(countriesWithStarbucksCount - countriesWithMugsCount)}
-                    </div>
-                  </div>
-
-                  <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                      <span style={{ fontSize: 32, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{visibleFriendsCount}</span>
-                      <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat3label}</span>
-                    </div>
-                    <div style={{ marginTop: 4, fontSize: 11, color: "#8a9e96" }}>{h.stat3sub}</div>
-                  </div>
-                </div>
-              )}
-
-              {/* Admin pills */}
-              {isAdminAuthenticated && (
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {[
-                    { key: "countries", labelRu: "Страны", labelEn: "Countries" },
-                    { key: "mugs", labelRu: "Кружки", labelEn: "Mugs" },
-                    { key: "people", labelRu: "Люди", labelEn: "People" },
-                  ].map(item => (
-                    <button key={item.key} type="button" onClick={() => openAdminView(item.key)} style={{
-                      padding: "5px 12px", border: "0.5px solid #1f6f54", borderRadius: 999,
-                      background: "transparent", color: "#1f6f54", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                    }}>
-                      {language === "en" ? item.labelEn : item.labelRu}
-                    </button>
-                  ))}
-                </div>
               )}
             </div>
 
