@@ -7,12 +7,13 @@ import MugCarousel from "./components/MugCarousel";
 import GlobeMapAsync from "./components/GlobeMapAsync";
 import CatalogPage from "./components/CatalogPage";
 import PeoplePage from "./components/PeoplePage";
+import HallOfFame from "./components/HallOfFame";
 
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { normalizeIso2, formatDate } from "./lib/utils";
 
 const ADMIN_TOKEN_STORAGE_KEY = "khodar_admin_token";
-const ADMIN_ONLY_VIEWS = new Set(["people", "countries", "mugs"]);
+const ADMIN_ONLY_VIEWS = new Set(["people", "countries", "mugs", "hall"]);
 const MOBILE_BREAKPOINT = 768;
 
 // ─── Hero text ────────────────────────────────────────────────────────────────
@@ -492,12 +493,13 @@ function AppContent() {
               { key: "countries", labelRu: "Страны", labelEn: "Countries" },
               { key: "mugs", labelRu: "Кружки", labelEn: "Mugs" },
               { key: "people", labelRu: "Люди", labelEn: "People" },
+              { key: "hall", labelRu: "★ Зал славы", labelEn: "★ Hall of Fame" },
             ].map(item => (
               <button key={item.key} type="button" onClick={() => openAdminView(item.key)} style={{
                 padding: "6px 14px", border: "none", borderRadius: 8,
                 background: currentView === item.key ? "#1f6f54" : "transparent",
-                color: currentView === item.key ? "#fff" : "#374151",
-                fontSize: 13, fontWeight: 500, cursor: "pointer",
+                color: currentView === item.key ? "#fff" : item.key === "hall" ? "#b8912a" : "#374151",
+                fontSize: 13, fontWeight: item.key === "hall" ? 600 : 500, cursor: "pointer",
               }}>
                 {language === "en" ? item.labelEn : item.labelRu}
               </button>
@@ -509,6 +511,7 @@ function AppContent() {
           {currentView === "countries" && <CountriesAdmin onChanged={loadData} />}
           {currentView === "mugs" && <MugsAdmin onChanged={loadData} language={language} />}
           {currentView === "people" && <PeoplePage mugs={mugs} countries={countries} language={language} isAdmin={isAdminAuthenticated} />}
+          {currentView === "hall" && <HallOfFame people={people} mugs={mugs} language={language} />}
         </>
       ) : (
         <>
@@ -593,10 +596,15 @@ function AppContent() {
                       { key: "countries", labelRu: "Страны", labelEn: "Countries" },
                       { key: "mugs", labelRu: "Кружки", labelEn: "Mugs" },
                       { key: "people", labelRu: "Люди", labelEn: "People" },
+                      { key: "hall", labelRu: "★ Зал славы", labelEn: "★ Hall of Fame" },
                     ].map(item => (
                       <button key={item.key} type="button" onClick={() => openAdminView(item.key)} style={{
-                        padding: "5px 12px", border: "0.5px solid #1f6f54", borderRadius: 999,
-                        background: "transparent", color: "#1f6f54", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                        padding: "5px 12px",
+                        border: `0.5px solid ${item.key === "hall" ? "#b8912a" : "#1f6f54"}`,
+                        borderRadius: 999,
+                        background: "transparent",
+                        color: item.key === "hall" ? "#b8912a" : "#1f6f54",
+                        fontSize: 12, fontWeight: 600, cursor: "pointer",
                       }}>
                         {language === "en" ? item.labelEn : item.labelRu}
                       </button>
