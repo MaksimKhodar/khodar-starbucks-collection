@@ -590,28 +590,107 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
   );
 }
 
-// ── SizeLegend ────────────────────────────────────────────────────────────────
+// ── CoffeeCupDecor ────────────────────────────────────────────────────────────
 
-function SizeLegend({ language }) {
-  const samples = [
-    { r: 14, label: language === "en" ? "1 mug"  : "1 кружка" },
-    { r: 22, label: language === "en" ? "~5"     : "~5 кружек" },
-    { r: 32, label: language === "en" ? "~15"    : "~15 кружек" },
-    { r: 44, label: language === "en" ? "~30+"   : "~30+ кружек" },
+function CoffeeCupDecor() {
+  // [cx, waveDir, duration, delay, opacity]
+  const WISPS = [
+    [113,  1, 5.2, 0.0,  0.13],
+    [130, -1, 4.7, 1.5,  0.10],
+    [146,  1, 5.8, 0.7,  0.14],
+    [162, -1, 4.5, 2.3,  0.09],
+    [124, -1, 6.1, 3.4,  0.12],
+    [154,  1, 5.0, 4.6,  0.08],
   ];
+
+  function wispPath(cx, dir) {
+    const a = 13 * dir;
+    return [
+      `M ${cx} 100`,
+      `Q ${cx + a} 78 ${cx} 58`,
+      `Q ${cx - a} 38 ${cx} 20`,
+      `Q ${cx + a * 0.6} 4 ${cx} -12`,
+    ].join(" ");
+  }
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "20px 16px 0" }}>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 24, flexWrap: "wrap" }}>
-        {samples.map(s => (
-          <div key={s.r} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-            <div style={{ width: s.r * 2, height: s.r * 2, borderRadius: "50%", background: "#e8e1d7", boxShadow: "0 0 0 2px rgba(255,255,255,0.8), 0 2px 8px rgba(0,0,0,0.1)" }} />
-            <span style={{ fontSize: 10, color: "#8a9e96" }}>{s.label}</span>
-          </div>
+    <div style={{
+      display: "flex", justifyContent: "center",
+      pointerEvents: "none",
+      paddingBottom: 52,
+    }}>
+      <svg
+        viewBox="0 0 280 218"
+        width="240" height="188"
+        style={{ overflow: "visible" }}
+        aria-hidden="true"
+      >
+        <defs>
+          <filter id="pc-steam" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="3"/>
+          </filter>
+        </defs>
+
+        {/* Steam wisps — rendered first (behind cup) */}
+        {WISPS.map(([cx, dir, dur, delay, op], i) => (
+          <path
+            key={i}
+            d={wispPath(cx, dir)}
+            fill="none"
+            stroke={`rgba(31,111,84,${op})`}
+            strokeWidth="3"
+            strokeLinecap="round"
+            filter="url(#pc-steam)"
+            style={{ animation: `pcSteam ${dur}s ease-in-out ${delay}s infinite` }}
+          />
         ))}
-      </div>
-      <p style={{ textAlign: "center", fontSize: 12, color: "#8a9e96", margin: 0 }}>
-        {language === "en" ? "The larger the photo, the more mugs gifted" : "Чем больше фото — тем больше подарено кружек"}
-      </p>
+
+        {/* ── Starbucks-style cup ── */}
+
+        {/* Rim */}
+        <rect x="77" y="93" width="126" height="14" rx="6"
+          fill="#1f6f54" opacity="0.86"/>
+
+        {/* Main body (trapezoid: wider top, narrower bottom) */}
+        <path d="M81,105 L96,197 L184,197 L199,105 Z"
+          fill="#1f6f54" opacity="0.86"/>
+
+        {/* Sleeve band (lower half, slightly darker) */}
+        <path d="M84,153 L96,197 L184,197 L196,153 Z"
+          fill="rgba(0,0,0,0.08)" />
+
+        {/* Sleeve seam lines for texture */}
+        <line x1="88" y1="153" x2="96" y2="197"
+          stroke="rgba(255,255,255,0.07)" strokeWidth="1"/>
+        <line x1="192" y1="153" x2="184" y2="197"
+          stroke="rgba(255,255,255,0.07)" strokeWidth="1"/>
+
+        {/* Handle */}
+        <path d="M199,120 Q228,151 199,182"
+          fill="none" stroke="#1f6f54" strokeWidth="13"
+          strokeLinecap="round" opacity="0.86"/>
+
+        {/* Inner handle highlight */}
+        <path d="M199,120 Q221,151 199,182"
+          fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="4"
+          strokeLinecap="round"/>
+
+        {/* Logo ring */}
+        <circle cx="140" cy="127" r="21"
+          fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="1.5"/>
+
+        {/* Tiny star/siren hint in center */}
+        <circle cx="140" cy="127" r="5"
+          fill="rgba(255,255,255,0.15)"/>
+
+        {/* Cup lip highlight */}
+        <rect x="77" y="93" width="126" height="4" rx="3"
+          fill="rgba(255,255,255,0.15)"/>
+
+        {/* Saucer shadow */}
+        <ellipse cx="140" cy="200" rx="62" ry="5"
+          fill="rgba(31,111,84,0.07)"/>
+      </svg>
     </div>
   );
 }
@@ -819,11 +898,17 @@ export default function PeoplePage({ people: peopleProp = [], mugs = [], countri
         )}
       </div>
 
-      {visible.length > 0 && <SizeLegend language={language} />}
-      <div style={{ height: 60 }} />
+      {visible.length > 0 && <CoffeeCupDecor />}
+      <div style={{ height: 20 }} />
 
       {/* Global keyframe animations */}
       <style>{`
+        @keyframes pcSteam {
+          0%   { transform: translateY(100px); opacity: 0; }
+          22%  { opacity: 1; }
+          78%  { opacity: 1; }
+          100% { transform: translateY(-280px); opacity: 0; }
+        }
         @keyframes bubbleFloat {
           0%, 100% { transform: translateY(0px); }
           50%       { transform: translateY(-7px); }
