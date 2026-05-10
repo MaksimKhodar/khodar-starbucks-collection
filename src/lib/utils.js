@@ -17,6 +17,29 @@ export function formatDate(value) {
   return String(value).slice(0, 7);
 }
 
+// Collection started November 2011 — count full elapsed years from that date
+export function getCollectionYears() {
+  return Math.floor((Date.now() - new Date(2011, 10, 1).getTime()) / (365.25 * 24 * 3600 * 1000));
+}
+
+// Russian: год / года / лет
+export function ruYears(n) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m100 >= 11 && m100 <= 19) return `${n} лет`;
+  if (m10 === 1) return `${n} год`;
+  if (m10 >= 2 && m10 <= 4) return `${n} года`;
+  return `${n} лет`;
+}
+
+// Russian: страна / страны / стран
+export function ruCountries(n) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m100 >= 11 && m100 <= 19) return `${n} стран`;
+  if (m10 === 1) return `${n} страна`;
+  if (m10 >= 2 && m10 <= 4) return `${n} страны`;
+  return `${n} стран`;
+}
+
 /**
  * Форматирует дату и время в локальный читаемый вид
  * @param {string} value - ISO-строка даты/времени

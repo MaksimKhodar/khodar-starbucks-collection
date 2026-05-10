@@ -10,37 +10,13 @@ import CatalogPage from "./components/CatalogPage";
 import PeoplePage from "./components/PeoplePage";
 
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
-import { normalizeIso2, formatDate } from "./lib/utils";
+import { normalizeIso2, formatDate, getCollectionYears, ruYears, ruCountries } from "./lib/utils";
 
 const ADMIN_TOKEN_STORAGE_KEY = "khodar_admin_token";
 const ADMIN_ONLY_VIEWS = new Set(["countries"]);
 const MOBILE_BREAKPOINT = 768;
 
 // ─── Hero text ────────────────────────────────────────────────────────────────
-
-// Count full years since November 2011 (collection started that month)
-function getCollectionYears() {
-  const start = new Date(2011, 10, 1); // Nov 1, 2011
-  return Math.floor((Date.now() - start.getTime()) / (365.25 * 24 * 3600 * 1000));
-}
-
-// Russian: 1 страна / 2-4 страны / 5+ стран
-function ruCountries(n) {
-  const m10 = n % 10, m100 = n % 100;
-  if (m100 >= 11 && m100 <= 19) return `${n} стран`;
-  if (m10 === 1) return `${n} страна`;
-  if (m10 >= 2 && m10 <= 4) return `${n} страны`;
-  return `${n} стран`;
-}
-
-// Russian: 1 год / 2-4 года / 5+ лет
-function ruYears(n) {
-  const m10 = n % 10, m100 = n % 100;
-  if (m100 >= 11 && m100 <= 19) return `${n} лет`;
-  if (m10 === 1) return `${n} год`;
-  if (m10 >= 2 && m10 <= 4) return `${n} года`;
-  return `${n} лет`;
-}
 
 const HERO = {
   ru: {
