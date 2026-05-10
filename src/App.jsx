@@ -7,14 +7,12 @@ import MugCarousel from "./components/MugCarousel";
 import GlobeMapAsync from "./components/GlobeMapAsync";
 import CatalogPage from "./components/CatalogPage";
 import PeoplePage from "./components/PeoplePage";
-import PeopleAdmin from "./components/PeopleAdmin";
-import HallOfFame from "./components/HallOfFame";
 
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { normalizeIso2, formatDate } from "./lib/utils";
 
 const ADMIN_TOKEN_STORAGE_KEY = "khodar_admin_token";
-const ADMIN_ONLY_VIEWS = new Set(["people", "people-admin", "countries", "mugs", "hall"]);
+const ADMIN_ONLY_VIEWS = new Set(["people", "countries"]);
 const MOBILE_BREAKPOINT = 768;
 
 // ─── Hero text ────────────────────────────────────────────────────────────────
@@ -492,16 +490,13 @@ function AppContent() {
           <div style={{ display: "flex", gap: 4, padding: "8px 24px", background: "#f8f4ed", borderBottom: "0.5px solid #e8e2d9" }}>
             {[
               { key: "countries", labelRu: "Страны", labelEn: "Countries" },
-              { key: "mugs", labelRu: "Кружки", labelEn: "Mugs" },
               { key: "people", labelRu: "Люди", labelEn: "People" },
-              { key: "people-admin", labelRu: "Управление людьми", labelEn: "Manage people" },
-              { key: "hall", labelRu: "★ Зал славы", labelEn: "★ Hall of Fame" },
             ].map(item => (
               <button key={item.key} type="button" onClick={() => openAdminView(item.key)} style={{
                 padding: "6px 14px", border: "none", borderRadius: 8,
                 background: currentView === item.key ? "#1f6f54" : "transparent",
-                color: currentView === item.key ? "#fff" : item.key === "hall" ? "#b8912a" : "#374151",
-                fontSize: 13, fontWeight: item.key === "hall" ? 600 : 500, cursor: "pointer",
+                color: currentView === item.key ? "#fff" : "#374151",
+                fontSize: 13, fontWeight: 500, cursor: "pointer",
               }}>
                 {language === "en" ? item.labelEn : item.labelRu}
               </button>
@@ -511,10 +506,7 @@ function AppContent() {
             </button>
           </div>
           {currentView === "countries" && <CountriesAdmin onChanged={loadData} />}
-          {currentView === "mugs" && <MugsAdmin onChanged={loadData} language={language} />}
-          {currentView === "people" && <PeoplePage people={people} mugs={mugs} countries={countries} language={language} isAdmin={isAdminAuthenticated} />}
-          {currentView === "people-admin" && <PeopleAdmin onChanged={loadData} language={language} />}
-          {currentView === "hall" && <HallOfFame people={people} mugs={mugs} language={language} />}
+          {currentView === "people" && <PeoplePage people={people} mugs={mugs} countries={countries} language={language} isAdmin={isAdminAuthenticated} onRefresh={loadData} />}
         </>
       ) : (
         <>
@@ -597,17 +589,14 @@ function AppContent() {
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {[
                       { key: "countries", labelRu: "Страны", labelEn: "Countries" },
-                      { key: "mugs", labelRu: "Кружки", labelEn: "Mugs" },
                       { key: "people", labelRu: "Люди", labelEn: "People" },
-                      { key: "people-admin", labelRu: "Упр. людьми", labelEn: "Manage people" },
-                      { key: "hall", labelRu: "★ Зал славы", labelEn: "★ Hall of Fame" },
                     ].map(item => (
                       <button key={item.key} type="button" onClick={() => openAdminView(item.key)} style={{
                         padding: "5px 12px",
-                        border: `0.5px solid ${item.key === "hall" ? "#b8912a" : "#1f6f54"}`,
+                        border: "0.5px solid #1f6f54",
                         borderRadius: 999,
                         background: "transparent",
-                        color: item.key === "hall" ? "#b8912a" : "#1f6f54",
+                        color: "#1f6f54",
                         fontSize: 12, fontWeight: 600, cursor: "pointer",
                       }}>
                         {language === "en" ? item.labelEn : item.labelRu}
