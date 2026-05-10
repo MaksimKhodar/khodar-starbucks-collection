@@ -627,7 +627,7 @@ function CoffeeCupDecor() {
       position: "relative",
       display: "flex",
       justifyContent: "center",
-      marginTop: -220,
+      marginTop: 0,
       paddingBottom: 48,
       pointerEvents: "none",
       overflow: "visible",
@@ -636,7 +636,7 @@ function CoffeeCupDecor() {
       <svg
         viewBox="0 0 400 10"
         width="400" height="10"
-        style={{ position: "absolute", bottom: 140, overflow: "visible", zIndex: 0 }}
+        style={{ position: "absolute", bottom: 260, overflow: "visible", zIndex: 0 }}
         aria-hidden="true"
       >
         <defs>
@@ -674,9 +674,9 @@ function CoffeeCupDecor() {
         alt=""
         aria-hidden="true"
         style={{
-          width: 200, height: 200,
+          width: 400, height: 400,
           position: "relative", zIndex: 1,
-          filter: "drop-shadow(0 16px 32px rgba(31,111,84,0.18)) drop-shadow(0 4px 8px rgba(0,0,0,0.12))",
+          filter: "drop-shadow(0 24px 48px rgba(31,111,84,0.20)) drop-shadow(0 6px 12px rgba(0,0,0,0.12))",
           userSelect: "none",
         }}
       />
