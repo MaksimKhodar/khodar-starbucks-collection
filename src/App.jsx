@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase";
+import { getMugImageUrl } from "./lib/storage";
 import CountriesAdmin from "./components/CountriesAdmin";
 import ErrorBoundary from "./components/ErrorBoundary";
 import MugsAdmin from "./components/MugsAdmin";
@@ -148,6 +149,101 @@ function MobileStatsBar({ mugsCount, countriesWithMugsCount, countriesWithStarbu
         </div>
       </button>
     </div>
+  );
+}
+
+// ─── PeopleTeaser ─────────────────────────────────────────────────────────────
+
+function PeopleTeaser({ people = [], mugs = [], language, onClick }) {
+  // Pick top contributors (sorted by mug count)
+  const topPeople = useMemo(() => {
+    const counts = {};
+    mugs.forEach(m => {
+      const ids = Array.isArray(m.brought_by_person_ids) ? m.brought_by_person_ids
+        : m.brought_by_person_id ? [m.brought_by_person_id] : [];
+      ids.forEach(id => { if (id) counts[id] = (counts[id] || 0) + 1; });
+    });
+    return [...people]
+      .filter(p => p.is_visible !== false)
+      .sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0))
+      .slice(0, 7);
+  }, [people, mugs]);
+
+  const visibleCount = people.filter(p => p.is_visible !== false).length;
+  const OVERLAP = 10; // px overlap between avatars
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center",
+        width: "100%", padding: "18px 24px",
+        background: "linear-gradient(to right, #f0faf5, #faf7f3)",
+        border: "none", borderBottom: "0.5px solid #e8e2d9",
+        cursor: "pointer", textAlign: "left",
+        gap: 20,
+      }}
+      onMouseEnter={e => { e.currentTarget.style.background = "linear-gradient(to right, #e4f5ed, #f5f0e8)"; }}
+      onMouseLeave={e => { e.currentTarget.style.background = "linear-gradient(to right, #f0faf5, #faf7f3)"; }}
+    >
+      {/* Overlapping avatar row */}
+      <div style={{ display: "flex", flexShrink: 0 }}>
+        {topPeople.map((person, i) => {
+          const url = person.avatar_image_path ? getMugImageUrl(person.avatar_image_path) : null;
+          const initials = [person.first_name?.[0], person.last_name?.[0]].filter(Boolean).join("").toUpperCase()
+            || person.instagram_url?.replace(/^.*\//, "")?.replace(/^@/, "")?.[0]?.toUpperCase() || "?";
+          return (
+            <div key={person.id} style={{
+              width: 40, height: 40, borderRadius: "50%",
+              border: "2.5px solid #fff",
+              marginLeft: i === 0 ? 0 : -OVERLAP,
+              background: url ? `url(${url}) center/cover` : "linear-gradient(135deg,#1f6f54,#2d9970)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              flexShrink: 0, zIndex: topPeople.length - i,
+              boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
+            }}>
+              {!url && initials}
+            </div>
+          );
+        })}
+        {visibleCount > topPeople.length && (
+          <div style={{
+            width: 40, height: 40, borderRadius: "50%",
+            border: "2.5px solid #fff",
+            marginLeft: -OVERLAP,
+            background: "#e8f5ee",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#1f6f54", fontSize: 11, fontWeight: 700,
+            flexShrink: 0, zIndex: 0,
+          }}>
+            +{visibleCount - topPeople.length}
+          </div>
+        )}
+      </div>
+
+      {/* Text */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#153126", marginBottom: 2 }}>
+          {language === "en" ? "People Behind the Collection" : "Люди за коллекцией"}
+        </div>
+        <div style={{ fontSize: 12, color: "#5f6f66" }}>
+          {language === "en"
+            ? `${visibleCount} friends from around the world helped build this collection`
+            : `${visibleCount} друзей со всего мира помогли собрать эту коллекцию`}
+        </div>
+      </div>
+
+      {/* Arrow */}
+      <div style={{
+        flexShrink: 0,
+        width: 32, height: 32, borderRadius: "50%",
+        background: "#1f6f54", color: "#fff",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 16, fontWeight: 700,
+      }}>→</div>
+    </button>
   );
 }
 
@@ -473,19 +569,30 @@ function AppContent() {
           )}
         </button>
 
-        {/* Public nav link — People */}
+        {/* Public nav — People Behind the Collection */}
         <button
           type="button"
           onClick={() => setCurrentView("people")}
           style={{
-            background: "none", border: "none", cursor: "pointer",
-            padding: "5px 10px", borderRadius: 8,
-            fontSize: 13, fontWeight: currentView === "people" ? 700 : 500,
-            color: currentView === "people" ? "#1f6f54" : "#374151",
-            borderBottom: currentView === "people" ? "2px solid #1f6f54" : "2px solid transparent",
+            display: "flex", alignItems: "center", gap: 6,
+            background: currentView === "people" ? "#1f6f54" : "#f0faf5",
+            border: `1.5px solid ${currentView === "people" ? "#1f6f54" : "#a8d5be"}`,
+            borderRadius: 999,
+            padding: isMobile ? "5px 12px" : "6px 16px",
+            color: currentView === "people" ? "#fff" : "#1f6f54",
+            fontSize: 13, fontWeight: 600, cursor: "pointer",
+            whiteSpace: "nowrap",
+            transition: "background 0.15s, border-color 0.15s",
           }}
+          onMouseEnter={e => { if (currentView !== "people") { e.currentTarget.style.background = "#e4f5ed"; e.currentTarget.style.borderColor = "#1f6f54"; } }}
+          onMouseLeave={e => { if (currentView !== "people") { e.currentTarget.style.background = "#f0faf5"; e.currentTarget.style.borderColor = "#a8d5be"; } }}
         >
-          {language === "en" ? "People" : "Люди"}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+            <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+          </svg>
+          {isMobile
+            ? (language === "en" ? "People" : "Люди")
+            : (language === "en" ? "People Behind the Collection" : "Люди за коллекцией")}
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
@@ -738,6 +845,14 @@ function AppContent() {
               </div>
             )}
           </section>
+
+          {/* ── People teaser ── */}
+          <PeopleTeaser
+            people={people}
+            mugs={mugs}
+            language={language}
+            onClick={() => setCurrentView("people")}
+          />
 
           {/* ── Catalog ── */}
           <div id="catalog-section">
