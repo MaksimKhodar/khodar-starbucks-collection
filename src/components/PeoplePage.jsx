@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getMugImageUrl, uploadMugImage } from "../lib/storage";
 import { supabase } from "../lib/supabase";
 import ImageCropperModal from "./ImageCropperModal";
+import MugCarousel from "./MugCarousel";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -119,7 +120,7 @@ function AvatarCircle({ person, size, alt }) {
 
 // ── BubbleNode ────────────────────────────────────────────────────────────────
 
-function BubbleNode({ node, isMobile, onSelect, index, outerRef, onHoverStart, onHoverEnd }) {
+function BubbleNode({ node, isMobile, onSelect, index, outerRef, buttonRef, onHoverStart, onHoverEnd }) {
   const [showTip, setShowTip] = useState(false);
   const { person, x, y, radius } = node;
   const diameter = radius * 2;
@@ -146,6 +147,7 @@ function BubbleNode({ node, isMobile, onSelect, index, outerRef, onHoverStart, o
         willChange: "transform",
       }}>
         <button
+          ref={buttonRef}
           type="button"
           aria-label={`${name}, ${person.mugsCount} кружек`}
           onClick={() => onSelect(person)}
@@ -160,6 +162,7 @@ function BubbleNode({ node, isMobile, onSelect, index, outerRef, onHoverStart, o
             boxShadow: "0 4px 14px rgba(21,49,38,0.16), 0 0 0 2.5px rgba(255,255,255,0.92)",
             animation: `bubbleFadeIn 0.5s ease ${index * 28}ms both`,
             outline: "none", WebkitTapHighlightColor: "transparent",
+            transition: "box-shadow 0.2s ease",
           }}
         >
           <AvatarCircle person={person} size={diameter} alt={`${name}, ${person.mugsCount} кружек`} />
@@ -173,12 +176,13 @@ function BubbleNode({ node, isMobile, onSelect, index, outerRef, onHoverStart, o
             transform: "translateY(-50%)",
             background: "rgba(21,49,38,0.95)",
             color: "#fff", borderRadius: 10,
-            padding: "8px 13px", fontSize: 12,
+            padding: "9px 14px", fontSize: 12,
             whiteSpace: "nowrap", pointerEvents: "none",
             boxShadow: "0 4px 20px rgba(0,0,0,0.25)", zIndex: 50,
           }}>
-            <div style={{ fontWeight: 700, marginBottom: 2 }}>{handle || name}</div>
-            <div style={{ color: "#9dc9b0" }}>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>{name}</div>
+            {handle && <div style={{ color: "#9dc9b0", marginBottom: 3, fontSize: 11 }}>{handle}</div>}
+            <div style={{ color: "#c5e8d8", fontSize: 12 }}>
               {person.mugsCount} {person.mugsCount === 1 ? "кружка" : person.mugsCount < 5 ? "кружки" : "кружек"}
             </div>
             <div style={{
@@ -305,9 +309,65 @@ function PersonEditForm({ person, language, onSaved, onCancel }) {
 
 // ── PersonModal ───────────────────────────────────────────────────────────────
 
+// ── MugViewer — lightbox for a single mug's photos ───────────────────────────
+
+function MugViewer({ mug, language, onClose }) {
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const countryName = mug._countryName;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 700,
+        background: "rgba(10,20,14,0.88)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div onClick={e => e.stopPropagation()} style={{
+        background: "#fffaf4", borderRadius: 18,
+        width: "100%", maxWidth: 400,
+        overflow: "hidden",
+        boxShadow: "0 24px 60px rgba(0,0,0,0.4)",
+        animation: "modalIn 0.2s ease",
+      }}>
+        {/* Carousel */}
+        <div style={{ aspectRatio: "1/1", width: "100%", background: "#f5f0e8", position: "relative" }}>
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <MugCarousel images={mug.mug_images || []} fallbackAlt={mug.title} />
+          </div>
+        </div>
+        {/* Info */}
+        <div style={{ padding: "14px 18px 18px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#153126", marginBottom: 3 }}>{mug.title}</div>
+            <div style={{ fontSize: 12, color: "#8a9e96" }}>
+              #{mug.collection_number}{countryName ? ` · ${countryName}` : ""}
+            </div>
+          </div>
+          <button type="button" onClick={onClose} style={{
+            background: "#f5f0e8", border: "none", borderRadius: "50%",
+            width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 16, color: "#5f6f66", cursor: "pointer", flexShrink: 0,
+          }}>×</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PersonModal ───────────────────────────────────────────────────────────────
+
 function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin, onClose, onRefresh }) {
   const [person, setPerson]   = useState(initialPerson);
   const [editMode, setEditMode] = useState(false);
+  const [viewingMug, setViewingMug] = useState(null);
   const overlayRef = useRef(null);
   const closeRef   = useRef(null);
 
@@ -338,10 +398,16 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
   }, []);
 
   useEffect(() => {
-    const onKey = e => { if (e.key === "Escape") { if (editMode) setEditMode(false); else onClose(); } };
+    const onKey = e => {
+      if (e.key === "Escape") {
+        if (viewingMug) { setViewingMug(null); return; }
+        if (editMode) { setEditMode(false); return; }
+        onClose();
+      }
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose, editMode]);
+  }, [onClose, editMode, viewingMug]);
 
   function handleOverlay(e) { if (e.target === overlayRef.current && !editMode) onClose(); }
 
@@ -352,6 +418,7 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
   }
 
   return (
+    <>
     <div ref={overlayRef} role="dialog" aria-modal="true" aria-labelledby="pm-name"
       onClick={handleOverlay}
       style={{
@@ -462,14 +529,39 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
                     {personMugs.map(mug => {
                       const img = mug.mug_images?.[0];
                       const imgUrl = img ? getMugImageUrl(img.storage_path) : null;
+                      const hasImages = (mug.mug_images?.length ?? 0) > 0;
+                      const country = countries.find(c => c.id === mug.country_id);
+                      const countryName = country ? (language === "en" ? country.name_en : country.name_ru) : null;
                       return (
-                        <div key={mug.id} style={{ borderRadius: 10, overflow: "hidden", background: "#f5f0e8", border: "1px solid #e8e2d9" }}>
-                          <div style={{ aspectRatio: "1/1", background: "#ede7dc" }}>
+                        <button
+                          key={mug.id}
+                          type="button"
+                          onClick={() => setViewingMug({ ...mug, _countryName: countryName })}
+                          style={{
+                            borderRadius: 10, overflow: "hidden", background: "#f5f0e8",
+                            border: "1px solid #e8e2d9", padding: 0, cursor: "pointer",
+                            textAlign: "left",
+                            transition: "transform 0.15s, box-shadow 0.15s",
+                          }}
+                          onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 6px 18px rgba(0,0,0,0.12)"; }}
+                          onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = ""; }}
+                        >
+                          <div style={{ aspectRatio: "1/1", background: "#ede7dc", position: "relative" }}>
                             {imgUrl ? (
                               <img src={imgUrl} alt={mug.title} loading="lazy"
                                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                             ) : (
                               <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#ccc", fontSize: 20 }}>☕</div>
+                            )}
+                            {hasImages && mug.mug_images.length > 1 && (
+                              <div style={{
+                                position: "absolute", bottom: 4, right: 4,
+                                background: "rgba(0,0,0,0.55)", color: "#fff",
+                                fontSize: 9, fontWeight: 600, borderRadius: 4,
+                                padding: "2px 5px",
+                              }}>
+                                1/{mug.mug_images.length}
+                              </div>
                             )}
                           </div>
                           <div style={{ padding: "5px 7px" }}>
@@ -478,7 +570,7 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
                             </div>
                             <div style={{ fontSize: 9, color: "#8a9e96", marginTop: 1 }}>#{mug.collection_number}</div>
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -489,6 +581,11 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
         )}
       </div>
     </div>
+
+    {viewingMug && (
+      <MugViewer mug={viewingMug} language={language} onClose={() => setViewingMug(null)} />
+    )}
+    </>
   );
 }
 
@@ -523,6 +620,7 @@ function SizeLegend({ language }) {
 function BubbleCloud({ people, mugs, countries, language, isAdmin, onSelect, onRefresh }) {
   const containerRef  = useRef(null);
   const outerRefs     = useRef([]);
+  const buttonRefs    = useRef([]);
   const nodeDataRef   = useRef([]);  // { x, y, r }[] for wave math
   const hoveredIdxRef = useRef(-1);
 
@@ -573,33 +671,47 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onSelect, onR
   useEffect(() => {
     nodeDataRef.current = nodes.map(n => ({ x: n.x, y: n.y, r: n.radius }));
     outerRefs.current.length = nodes.length;
+    buttonRefs.current.length = nodes.length;
   }, [nodes]);
 
-  // Wave animation (direct DOM, no re-render)
+  // Wave animation + shadow (direct DOM, no re-render)
   const applyWave = useCallback((hovIdx) => {
     const nd = nodeDataRef.current;
     outerRefs.current.forEach((el, i) => {
       if (!el || !nd[i]) return;
+      const btn = buttonRefs.current[i];
       if (i === hovIdx) {
-        el.style.transform  = "translateY(-18px) scale(1.07)";
-        el.style.transition = "transform 0.2s cubic-bezier(0.34,1.56,0.64,1)";
+        // Rise up with spring easing
+        el.style.transform  = "translateY(-22px) scale(1.08)";
+        el.style.transition = "transform 0.22s cubic-bezier(0.34,1.56,0.64,1)";
         el.style.zIndex     = "20";
+        // Deep ground shadow — stays "below" while button lifts
+        if (btn) {
+          btn.style.boxShadow = "0 32px 56px rgba(21,49,38,0.42), 0 12px 20px rgba(0,0,0,0.2), 0 0 0 3px rgba(255,255,255,0.95)";
+          btn.style.transition = "box-shadow 0.22s ease";
+        }
       } else {
+        // Push away from hovered bubble
         let px = 0, py = 0;
         if (hovIdx >= 0 && nd[hovIdx]) {
           const h = nd[hovIdx];
           const dx = nd[i].x - h.x, dy = nd[i].y - h.y;
           const d  = Math.sqrt(dx * dx + dy * dy);
-          const infl = h.r * 3.5;
+          const infl = h.r * 5;
           if (d < infl && d > 0) {
             const t  = (1 - d / infl) ** 1.5;
-            px = (dx / d) * t * 14;
-            py = (dy / d) * t * 14;
+            px = (dx / d) * t * 24;
+            py = (dy / d) * t * 24;
           }
         }
         el.style.transform  = (px || py) ? `translate(${px.toFixed(1)}px,${py.toFixed(1)}px)` : "";
-        el.style.transition = "transform 0.28s ease";
+        el.style.transition = "transform 0.3s ease";
         el.style.zIndex     = "1";
+        // Restore normal shadow
+        if (btn) {
+          btn.style.boxShadow = "0 4px 14px rgba(21,49,38,0.16), 0 0 0 2.5px rgba(255,255,255,0.92)";
+          btn.style.transition = "box-shadow 0.3s ease";
+        }
       }
     });
   }, []);
@@ -625,6 +737,7 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onSelect, onR
                 onSelect={handleSelect}
                 index={i}
                 outerRef={el => { outerRefs.current[i] = el; }}
+                buttonRef={el => { buttonRefs.current[i] = el; }}
                 onHoverStart={handleHoverStart}
                 onHoverEnd={handleHoverEnd}
               />
