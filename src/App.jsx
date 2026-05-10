@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase";
+import { getMugImageUrl } from "./lib/storage";
 import CountriesAdmin from "./components/CountriesAdmin";
 import ErrorBoundary from "./components/ErrorBoundary";
 import MugsAdmin from "./components/MugsAdmin";
@@ -7,22 +8,45 @@ import MugCarousel from "./components/MugCarousel";
 import GlobeMapAsync from "./components/GlobeMapAsync";
 import CatalogPage from "./components/CatalogPage";
 import PeoplePage from "./components/PeoplePage";
-import HallOfFame from "./components/HallOfFame";
 
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { normalizeIso2, formatDate } from "./lib/utils";
 
 const ADMIN_TOKEN_STORAGE_KEY = "khodar_admin_token";
-const ADMIN_ONLY_VIEWS = new Set(["people", "countries", "mugs", "hall"]);
+const ADMIN_ONLY_VIEWS = new Set(["countries"]);
 const MOBILE_BREAKPOINT = 768;
 
 // ─── Hero text ────────────────────────────────────────────────────────────────
 
+// Count full years since November 2011 (collection started that month)
+function getCollectionYears() {
+  const start = new Date(2011, 10, 1); // Nov 1, 2011
+  return Math.floor((Date.now() - start.getTime()) / (365.25 * 24 * 3600 * 1000));
+}
+
+// Russian: 1 страна / 2-4 страны / 5+ стран
+function ruCountries(n) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m100 >= 11 && m100 <= 19) return `${n} стран`;
+  if (m10 === 1) return `${n} страна`;
+  if (m10 >= 2 && m10 <= 4) return `${n} страны`;
+  return `${n} стран`;
+}
+
+// Russian: 1 год / 2-4 года / 5+ лет
+function ruYears(n) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m100 >= 11 && m100 <= 19) return `${n} лет`;
+  if (m10 === 1) return `${n} год`;
+  if (m10 >= 2 && m10 <= 4) return `${n} года`;
+  return `${n} лет`;
+}
+
 const HERO = {
   ru: {
     eyebrow: "Личная коллекция",
-    title: "11 лет. 41 страна.\nКаждая кружка — история.",
-    text: "Всё началось с минского ЦУМа в 2014-м и поездки в Дублин, где я влюбился в Starbucks. С тех пор каждая кружка — это место, момент или человек: командировка в Женеву, ночь в Стамбуле с лучшим другом, сюрприз из Нью-Йорка без повода. Некоторые кружки разбились — но здесь они живут.",
+    title: (years, countries) => `${ruYears(years)}. ${ruCountries(countries)}.\nКаждая кружка — история.`,
+    text: "Всё началось в 2011-м с первой кружки из Дублина, где я влюбился в Starbucks. С тех пор каждая кружка — это место, момент или человек: командировка в Женеву, ночь в Стамбуле с близкими друзьями, сюрприз из Нью-Йорка без повода. Некоторые кружки разбились — но здесь они живут.",
     stat1label: "кружек в коллекции",
     stat2label: (withMugs, total) => `${withMugs} из ${total} стран со Starbucks`,
     stat2sub: (missing) => `в ${missing} странах кружек ещё нет`,
@@ -36,8 +60,8 @@ const HERO = {
   },
   en: {
     eyebrow: "Personal collection",
-    title: "11 years. 41 countries.\nEvery mug has a story.",
-    text: "It started in a Minsk department store in 2014 and a year in Dublin where I fell in love with Starbucks. Since then every mug is a place, a moment, or a person: a work trip to Geneva, a night in Istanbul with my best friend, a surprise from New York for no reason. Some mugs broke — but they live on here.",
+    title: (years, countries) => `${years} ${years === 1 ? "year" : "years"}. ${countries} ${countries === 1 ? "country" : "countries"}.\nEvery mug has a story.`,
+    text: "It started in 2011 with the first mug from Dublin, where I fell in love with Starbucks. Since then every mug is a place, a moment, or a person: a work trip to Geneva, a night in Istanbul with close friends, a surprise from New York for no reason. Some mugs broke — but they live on here.",
     stat1label: "mugs in the collection",
     stat2label: (withMugs, total) => `${withMugs} of ${total} Starbucks countries`,
     stat2sub: (missing) => `${missing} countries still waiting`,
@@ -115,7 +139,7 @@ function AdminLoginModal({ isOpen, language, loading, error, onClose, onSubmit }
 
 // ─── MobileStatsBar ───────────────────────────────────────────────────────────
 
-function MobileStatsBar({ mugsCount, countriesWithMugsCount, countriesWithStarbucksCount, visibleFriendsCount, h }) {
+function MobileStatsBar({ mugsCount, countriesWithMugsCount, countriesWithStarbucksCount, visibleFriendsCount, h, onPeopleClick }) {
   return (
     <div style={{
       display: "flex", overflowX: "auto", gap: 10, padding: "12px 16px",
@@ -130,11 +154,117 @@ function MobileStatsBar({ mugsCount, countriesWithMugsCount, countriesWithStarbu
         <div style={{ fontSize: 26, fontWeight: 700, color: "#1f6f54", lineHeight: 1 }}>{countriesWithMugsCount}</div>
         <div style={{ fontSize: 11, color: "#5f6f66", marginTop: 3, whiteSpace: "nowrap" }}>{h.stat2label(countriesWithMugsCount, countriesWithStarbucksCount)}</div>
       </div>
-      <div style={{ flexShrink: 0, padding: "10px 16px", background: "#fff", borderRadius: 12, border: "0.5px solid #e8e2d9", minWidth: 120 }}>
+      {/* People stat — clickable on mobile */}
+      <button
+        type="button"
+        onClick={onPeopleClick}
+        style={{
+          flexShrink: 0, padding: "10px 16px", background: "#fff", borderRadius: 12,
+          border: "0.5px solid #e8e2d9", minWidth: 120, textAlign: "left", cursor: "pointer",
+        }}
+      >
         <div style={{ fontSize: 26, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{visibleFriendsCount}</div>
-        <div style={{ fontSize: 11, color: "#5f6f66", marginTop: 3, whiteSpace: "nowrap" }}>{h.stat3label}</div>
-      </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 3 }}>
+          <span style={{ fontSize: 11, color: "#5f6f66", whiteSpace: "nowrap" }}>{h.stat3label}</span>
+          <span style={{ fontSize: 11, color: "#1f6f54", fontWeight: 700 }}>→</span>
+        </div>
+      </button>
     </div>
+  );
+}
+
+// ─── PeopleTeaser ─────────────────────────────────────────────────────────────
+
+function PeopleTeaser({ people = [], mugs = [], language, onClick }) {
+  // Pick top contributors (sorted by mug count)
+  const topPeople = useMemo(() => {
+    const counts = {};
+    mugs.forEach(m => {
+      const ids = Array.isArray(m.brought_by_person_ids) ? m.brought_by_person_ids
+        : m.brought_by_person_id ? [m.brought_by_person_id] : [];
+      ids.forEach(id => { if (id) counts[id] = (counts[id] || 0) + 1; });
+    });
+    return [...people]
+      .filter(p => p.is_visible !== false)
+      .sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0))
+      .slice(0, 7);
+  }, [people, mugs]);
+
+  const visibleCount = people.filter(p => p.is_visible !== false).length;
+  const OVERLAP = 10; // px overlap between avatars
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center",
+        width: "100%", padding: "18px 24px",
+        background: "linear-gradient(to right, #f0faf5, #faf7f3)",
+        border: "none", borderBottom: "0.5px solid #e8e2d9",
+        cursor: "pointer", textAlign: "left",
+        gap: 20,
+      }}
+      onMouseEnter={e => { e.currentTarget.style.background = "linear-gradient(to right, #e4f5ed, #f5f0e8)"; }}
+      onMouseLeave={e => { e.currentTarget.style.background = "linear-gradient(to right, #f0faf5, #faf7f3)"; }}
+    >
+      {/* Overlapping avatar row */}
+      <div style={{ display: "flex", flexShrink: 0 }}>
+        {topPeople.map((person, i) => {
+          const url = person.avatar_image_path ? getMugImageUrl(person.avatar_image_path) : null;
+          const initials = [person.first_name?.[0], person.last_name?.[0]].filter(Boolean).join("").toUpperCase()
+            || person.instagram_url?.replace(/^.*\//, "")?.replace(/^@/, "")?.[0]?.toUpperCase() || "?";
+          return (
+            <div key={person.id} style={{
+              width: 40, height: 40, borderRadius: "50%",
+              border: "2.5px solid #fff",
+              marginLeft: i === 0 ? 0 : -OVERLAP,
+              background: url ? `url(${url}) center/cover` : "linear-gradient(135deg,#1f6f54,#2d9970)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              flexShrink: 0, zIndex: topPeople.length - i,
+              boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
+            }}>
+              {!url && initials}
+            </div>
+          );
+        })}
+        {visibleCount > topPeople.length && (
+          <div style={{
+            width: 40, height: 40, borderRadius: "50%",
+            border: "2.5px solid #fff",
+            marginLeft: -OVERLAP,
+            background: "#e8f5ee",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#1f6f54", fontSize: 11, fontWeight: 700,
+            flexShrink: 0, zIndex: 0,
+          }}>
+            +{visibleCount - topPeople.length}
+          </div>
+        )}
+      </div>
+
+      {/* Text */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "#153126", marginBottom: 2 }}>
+          {language === "en" ? "People Behind the Collection" : "Люди за коллекцией"}
+        </div>
+        <div style={{ fontSize: 12, color: "#5f6f66" }}>
+          {language === "en"
+            ? `${visibleCount} friends from around the world helped build this collection`
+            : `${visibleCount} друзей со всего мира помогли собрать эту коллекцию`}
+        </div>
+      </div>
+
+      {/* Arrow */}
+      <div style={{
+        flexShrink: 0,
+        width: 32, height: 32, borderRadius: "50%",
+        background: "#1f6f54", color: "#fff",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 16, fontWeight: 700,
+      }}>→</div>
+    </button>
   );
 }
 
@@ -453,11 +583,14 @@ function AppContent() {
           <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#1f6f54", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M18.5 3h-13C4.7 3 4 3.7 4 4.5v1c0 .4.2.8.5 1L6 8v9c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V8l1.5-1.5c.3-.2.5-.6.5-1v-1C20 3.7 19.3 3 18.5 3zm-2.5 5v9H8V8h8zm2-2.5L16.5 7h-9L6 5.5v-.5h12v.5z"/></svg>
           </div>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "#153126" }}>
-            Khodar <span style={{ color: "#1f6f54" }}>Starbucks</span> Collection
-          </span>
+          {!isMobile && (
+            <span style={{ fontSize: 14, fontWeight: 600, color: "#153126" }}>
+              Khodar <span style={{ color: "#1f6f54" }}>Starbucks</span> Collection
+            </span>
+          )}
         </button>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
           <LanguageSwitch />
           {isAdminAuthenticated ? (
             <>
@@ -485,34 +618,36 @@ function AppContent() {
         onClose={() => { if (!adminAuthLoading) { setAdminAuthError(""); setIsLoginOpen(false); } }}
         onSubmit={handleAdminLogin} />
 
-      {/* ── Admin views ── */}
+      {/* ── Admin views (countries only) ── */}
       {isAdminAuthenticated && isAdminView ? (
         <>
           <div style={{ display: "flex", gap: 4, padding: "8px 24px", background: "#f8f4ed", borderBottom: "0.5px solid #e8e2d9" }}>
-            {[
-              { key: "countries", labelRu: "Страны", labelEn: "Countries" },
-              { key: "mugs", labelRu: "Кружки", labelEn: "Mugs" },
-              { key: "people", labelRu: "Люди", labelEn: "People" },
-              { key: "hall", labelRu: "★ Зал славы", labelEn: "★ Hall of Fame" },
-            ].map(item => (
-              <button key={item.key} type="button" onClick={() => openAdminView(item.key)} style={{
-                padding: "6px 14px", border: "none", borderRadius: 8,
-                background: currentView === item.key ? "#1f6f54" : "transparent",
-                color: currentView === item.key ? "#fff" : item.key === "hall" ? "#b8912a" : "#374151",
-                fontSize: 13, fontWeight: item.key === "hall" ? 600 : 500, cursor: "pointer",
-              }}>
-                {language === "en" ? item.labelEn : item.labelRu}
-              </button>
-            ))}
+            <button type="button" onClick={() => openAdminView("countries")} style={{
+              padding: "6px 14px", border: "none", borderRadius: 8,
+              background: currentView === "countries" ? "#1f6f54" : "transparent",
+              color: currentView === "countries" ? "#fff" : "#374151",
+              fontSize: 13, fontWeight: 500, cursor: "pointer",
+            }}>
+              {language === "en" ? "Countries" : "Страны"}
+            </button>
             <button type="button" onClick={() => setCurrentView("home")} style={{ marginLeft: "auto", padding: "6px 14px", border: "0.5px solid #e2ddd4", borderRadius: 8, background: "transparent", color: "#374151", fontSize: 13, cursor: "pointer" }}>
               {language === "en" ? "← Back to site" : "← На сайт"}
             </button>
           </div>
           {currentView === "countries" && <CountriesAdmin onChanged={loadData} />}
-          {currentView === "mugs" && <MugsAdmin onChanged={loadData} language={language} />}
-          {currentView === "people" && <PeoplePage mugs={mugs} countries={countries} language={language} isAdmin={isAdminAuthenticated} />}
-          {currentView === "hall" && <HallOfFame people={people} mugs={mugs} language={language} />}
         </>
+
+      /* ── People page (public, with admin edit rights) ── */
+      ) : currentView === "people" ? (
+        <PeoplePage
+          people={people}
+          mugs={mugs}
+          countries={countries}
+          language={language}
+          isAdmin={isAdminAuthenticated}
+          onRefresh={loadData}
+        />
+
       ) : (
         <>
           {warningMessage && (
@@ -544,7 +679,7 @@ function AppContent() {
                     {h.eyebrow}
                   </p>
                   <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color: "#153126", lineHeight: 1.3, marginBottom: 14, whiteSpace: "pre-line" }}>
-                    {h.title}
+                    {h.title(getCollectionYears(), countriesWithMugsCount)}
                   </h1>
                   <p style={{ fontSize: 13, color: "#5f6f66", lineHeight: 1.7 }}>
                     {h.text}
@@ -579,36 +714,40 @@ function AppContent() {
                       </div>
                     </div>
 
-                    <div style={{ padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9" }}>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentView("people")}
+                      style={{
+                        padding: "12px 14px", borderRadius: 12, background: "#f5f0e8", border: "0.5px solid #e8e2d9",
+                        textAlign: "left", cursor: "pointer", width: "100%",
+                        transition: "background 0.15s, border-color 0.15s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "#e8f5ee"; e.currentTarget.style.borderColor = "#1f6f54"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "#f5f0e8"; e.currentTarget.style.borderColor = "#e8e2d9"; }}
+                    >
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
                         <span style={{ fontSize: 32, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{visibleFriendsCount}</span>
                         <span style={{ fontSize: 13, color: "#5f6f66" }}>{h.stat3label}</span>
                       </div>
-                      <div style={{ marginTop: 4, fontSize: 11, color: "#8a9e96" }}>{h.stat3sub}</div>
-                    </div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span style={{ fontSize: 11, color: "#8a9e96" }}>{h.stat3sub}</span>
+                        <span style={{ fontSize: 11, color: "#1f6f54", fontWeight: 600 }}>
+                          {language === "en" ? "View →" : "Смотреть →"}
+                        </span>
+                      </div>
+                    </button>
                   </div>
                 )}
 
-                {/* Admin pills */}
+                {/* Admin pill — countries only (People is now public nav) */}
                 {isAdminAuthenticated && (
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {[
-                      { key: "countries", labelRu: "Страны", labelEn: "Countries" },
-                      { key: "mugs", labelRu: "Кружки", labelEn: "Mugs" },
-                      { key: "people", labelRu: "Люди", labelEn: "People" },
-                      { key: "hall", labelRu: "★ Зал славы", labelEn: "★ Hall of Fame" },
-                    ].map(item => (
-                      <button key={item.key} type="button" onClick={() => openAdminView(item.key)} style={{
-                        padding: "5px 12px",
-                        border: `0.5px solid ${item.key === "hall" ? "#b8912a" : "#1f6f54"}`,
-                        borderRadius: 999,
-                        background: "transparent",
-                        color: item.key === "hall" ? "#b8912a" : "#1f6f54",
-                        fontSize: 12, fontWeight: 600, cursor: "pointer",
-                      }}>
-                        {language === "en" ? item.labelEn : item.labelRu}
-                      </button>
-                    ))}
+                    <button type="button" onClick={() => openAdminView("countries")} style={{
+                      padding: "5px 12px", border: "0.5px solid #1f6f54", borderRadius: 999,
+                      background: "transparent", color: "#1f6f54", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    }}>
+                      {language === "en" ? "Countries" : "Страны"}
+                    </button>
                   </div>
                 )}
               </div>
@@ -621,6 +760,7 @@ function AppContent() {
                   countriesWithStarbucksCount={countriesWithStarbucksCount}
                   visibleFriendsCount={visibleFriendsCount}
                   h={h}
+                  onPeopleClick={() => setCurrentView("people")}
                 />
               )}
             </div>
@@ -700,6 +840,14 @@ function AppContent() {
               </div>
             )}
           </section>
+
+          {/* ── People teaser ── */}
+          <PeopleTeaser
+            people={people}
+            mugs={mugs}
+            language={language}
+            onClick={() => setCurrentView("people")}
+          />
 
           {/* ── Catalog ── */}
           <div id="catalog-section">
