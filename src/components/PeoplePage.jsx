@@ -782,14 +782,14 @@ export default function PeoplePage({ people: peopleProp = [], mugs = [], countri
         </h1>
         <p style={{ margin: "0 0 28px", fontSize: 14, color: "#5f6f66", lineHeight: 1.7 }}>
           {language === "en"
-            ? `${visible.length} friends helped grow this collection across 11 years of travels.`
-            : `${visible.length} друзей помогли собрать эту коллекцию за 11 лет путешествий.`}
+            ? `${visible.length} friends helped grow this collection across ${new Date().getFullYear() - 2011} years of travels.`
+            : `${visible.length} друзей помогли собрать эту коллекцию за ${new Date().getFullYear() - 2011} лет путешествий.`}
         </p>
         <div style={{ display: "flex", gap: 24, justifyContent: "center", flexWrap: "wrap" }}>
           {[
             { n: visible.length, label: language === "en" ? "contributors" : "участников" },
             { n: mugs.length,    label: language === "en" ? "mugs"         : "кружек" },
-            { n: 11,             label: language === "en" ? "years"        : "лет" },
+            { n: new Date().getFullYear() - 2011, label: language === "en" ? "years" : "лет" },
           ].map(s => (
             <div key={s.label} style={{ textAlign: "center" }}>
               <div style={{ fontSize: 28, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{s.n}</div>
