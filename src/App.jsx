@@ -18,13 +18,34 @@ const MOBILE_BREAKPOINT = 768;
 
 // ─── Hero text ────────────────────────────────────────────────────────────────
 
-const COLLECTION_START = 2011;
-const collectionYears  = new Date().getFullYear() - COLLECTION_START;
+// Count full years since November 2011 (collection started that month)
+function getCollectionYears() {
+  const start = new Date(2011, 10, 1); // Nov 1, 2011
+  return Math.floor((Date.now() - start.getTime()) / (365.25 * 24 * 3600 * 1000));
+}
+
+// Russian: 1 страна / 2-4 страны / 5+ стран
+function ruCountries(n) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m100 >= 11 && m100 <= 19) return `${n} стран`;
+  if (m10 === 1) return `${n} страна`;
+  if (m10 >= 2 && m10 <= 4) return `${n} страны`;
+  return `${n} стран`;
+}
+
+// Russian: 1 год / 2-4 года / 5+ лет
+function ruYears(n) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m100 >= 11 && m100 <= 19) return `${n} лет`;
+  if (m10 === 1) return `${n} год`;
+  if (m10 >= 2 && m10 <= 4) return `${n} года`;
+  return `${n} лет`;
+}
 
 const HERO = {
   ru: {
     eyebrow: "Личная коллекция",
-    title: `${collectionYears} лет. 41 страна.\nКаждая кружка — история.`,
+    title: (years, countries) => `${ruYears(years)}. ${ruCountries(countries)}.\nКаждая кружка — история.`,
     text: "Всё началось в 2011-м с первой кружки из Дублина, где я влюбился в Starbucks. С тех пор каждая кружка — это место, момент или человек: командировка в Женеву, ночь в Стамбуле с близкими друзьями, сюрприз из Нью-Йорка без повода. Некоторые кружки разбились — но здесь они живут.",
     stat1label: "кружек в коллекции",
     stat2label: (withMugs, total) => `${withMugs} из ${total} стран со Starbucks`,
@@ -39,7 +60,7 @@ const HERO = {
   },
   en: {
     eyebrow: "Personal collection",
-    title: `${collectionYears} years. 41 countries.\nEvery mug has a story.`,
+    title: (years, countries) => `${years} ${years === 1 ? "year" : "years"}. ${countries} ${countries === 1 ? "country" : "countries"}.\nEvery mug has a story.`,
     text: "It started in 2011 with the first mug from Dublin, where I fell in love with Starbucks. Since then every mug is a place, a moment, or a person: a work trip to Geneva, a night in Istanbul with close friends, a surprise from New York for no reason. Some mugs broke — but they live on here.",
     stat1label: "mugs in the collection",
     stat2label: (withMugs, total) => `${withMugs} of ${total} Starbucks countries`,
@@ -658,7 +679,7 @@ function AppContent() {
                     {h.eyebrow}
                   </p>
                   <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, color: "#153126", lineHeight: 1.3, marginBottom: 14, whiteSpace: "pre-line" }}>
-                    {h.title}
+                    {h.title(getCollectionYears(), countriesWithMugsCount)}
                   </h1>
                   <p style={{ fontSize: 13, color: "#5f6f66", lineHeight: 1.7 }}>
                     {h.text}
