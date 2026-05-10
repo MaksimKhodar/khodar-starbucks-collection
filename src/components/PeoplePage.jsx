@@ -593,104 +593,93 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
 // ── CoffeeCupDecor ────────────────────────────────────────────────────────────
 
 function CoffeeCupDecor() {
-  // [cx, waveDir, duration, delay, opacity]
+  // Wide heavy wisps  [x offset from center, wave-amplitude, stroke-width, dur, delay, opacity, blur-filter]
   const WISPS = [
-    [113,  1, 5.2, 0.0,  0.13],
-    [130, -1, 4.7, 1.5,  0.10],
-    [146,  1, 5.8, 0.7,  0.14],
-    [162, -1, 4.5, 2.3,  0.09],
-    [124, -1, 6.1, 3.4,  0.12],
-    [154,  1, 5.0, 4.6,  0.08],
+    // Layer 1 — thick background puffs, very blurry
+    { dx: -30, a: 18, sw: 18, dur: 7.0, delay: 0.0,  op: 0.07, f: "pc-blur-heavy" },
+    { dx:  10, a:-22, sw: 20, dur: 7.8, delay: 2.2,  op: 0.06, f: "pc-blur-heavy" },
+    { dx:  35, a: 15, sw: 16, dur: 6.5, delay: 4.5,  op: 0.07, f: "pc-blur-heavy" },
+    // Layer 2 — medium wisps
+    { dx: -15, a:-14, sw: 10, dur: 5.5, delay: 1.0,  op: 0.11, f: "pc-blur-mid" },
+    { dx:   5, a: 16, sw: 12, dur: 5.0, delay: 3.2,  op: 0.10, f: "pc-blur-mid" },
+    { dx:  22, a:-12, sw: 9,  dur: 6.2, delay: 0.7,  op: 0.12, f: "pc-blur-mid" },
+    { dx: -28, a: 10, sw: 8,  dur: 5.8, delay: 5.1,  op: 0.09, f: "pc-blur-mid" },
+    // Layer 3 — thin detail wisps, less blurry
+    { dx:  -8, a: 10, sw: 5,  dur: 4.8, delay: 1.8,  op: 0.15, f: "pc-blur-soft" },
+    { dx:  18, a:-11, sw: 4,  dur: 4.5, delay: 3.8,  op: 0.14, f: "pc-blur-soft" },
+    { dx: -20, a:  8, sw: 4,  dur: 5.2, delay: 6.0,  op: 0.12, f: "pc-blur-soft" },
   ];
 
-  function wispPath(cx, dir) {
-    const a = 13 * dir;
+  const CX = 200; // center x of steam (matches center of cup image)
+
+  function wispPath(dx, a) {
+    const x = CX + dx;
     return [
-      `M ${cx} 100`,
-      `Q ${cx + a} 78 ${cx} 58`,
-      `Q ${cx - a} 38 ${cx} 20`,
-      `Q ${cx + a * 0.6} 4 ${cx} -12`,
+      `M ${x} 0`,
+      `Q ${x + a}    -90  ${x}          -180`,
+      `Q ${x - a}   -270  ${x + a*0.5}  -360`,
+      `Q ${x + a*0.3} -450 ${x}          -520`,
     ].join(" ");
   }
 
   return (
     <div style={{
-      display: "flex", justifyContent: "center",
+      position: "relative",
+      display: "flex",
+      justifyContent: "center",
+      marginTop: -220,
+      paddingBottom: 48,
       pointerEvents: "none",
-      paddingBottom: 52,
+      overflow: "visible",
     }}>
+      {/* Steam SVG — absolutely centered, z-index 0 (behind cup) */}
       <svg
-        viewBox="0 0 280 218"
-        width="240" height="188"
-        style={{ overflow: "visible" }}
+        viewBox="0 0 400 10"
+        width="400" height="10"
+        style={{ position: "absolute", bottom: 140, overflow: "visible", zIndex: 0 }}
         aria-hidden="true"
       >
         <defs>
-          <filter id="pc-steam" x="-80%" y="-80%" width="260%" height="260%">
+          <filter id="pc-blur-heavy" x="-200%" y="-200%" width="500%" height="500%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="9"/>
+          </filter>
+          <filter id="pc-blur-mid" x="-150%" y="-150%" width="400%" height="400%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="5"/>
+          </filter>
+          <filter id="pc-blur-soft" x="-100%" y="-100%" width="300%" height="300%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="3"/>
           </filter>
         </defs>
 
-        {/* Steam wisps — rendered first (behind cup) */}
-        {WISPS.map(([cx, dir, dur, delay, op], i) => (
+        {WISPS.map((w, i) => (
           <path
             key={i}
-            d={wispPath(cx, dir)}
+            d={wispPath(w.dx, w.a)}
             fill="none"
-            stroke={`rgba(31,111,84,${op})`}
-            strokeWidth="3"
+            stroke={`rgba(31,111,84,${w.op})`}
+            strokeWidth={w.sw}
             strokeLinecap="round"
-            filter="url(#pc-steam)"
-            style={{ animation: `pcSteam ${dur}s ease-in-out ${delay}s infinite` }}
+            filter={`url(#${w.f})`}
+            style={{
+              animation: `pcSteamBig ${w.dur}s ease-in-out ${w.delay}s infinite`,
+              transformOrigin: `${CX + w.dx}px 0px`,
+            }}
           />
         ))}
-
-        {/* ── Starbucks-style cup ── */}
-
-        {/* Rim */}
-        <rect x="77" y="93" width="126" height="14" rx="6"
-          fill="#1f6f54" opacity="0.86"/>
-
-        {/* Main body (trapezoid: wider top, narrower bottom) */}
-        <path d="M81,105 L96,197 L184,197 L199,105 Z"
-          fill="#1f6f54" opacity="0.86"/>
-
-        {/* Sleeve band (lower half, slightly darker) */}
-        <path d="M84,153 L96,197 L184,197 L196,153 Z"
-          fill="rgba(0,0,0,0.08)" />
-
-        {/* Sleeve seam lines for texture */}
-        <line x1="88" y1="153" x2="96" y2="197"
-          stroke="rgba(255,255,255,0.07)" strokeWidth="1"/>
-        <line x1="192" y1="153" x2="184" y2="197"
-          stroke="rgba(255,255,255,0.07)" strokeWidth="1"/>
-
-        {/* Handle */}
-        <path d="M199,120 Q228,151 199,182"
-          fill="none" stroke="#1f6f54" strokeWidth="13"
-          strokeLinecap="round" opacity="0.86"/>
-
-        {/* Inner handle highlight */}
-        <path d="M199,120 Q221,151 199,182"
-          fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="4"
-          strokeLinecap="round"/>
-
-        {/* Logo ring */}
-        <circle cx="140" cy="127" r="21"
-          fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="1.5"/>
-
-        {/* Tiny star/siren hint in center */}
-        <circle cx="140" cy="127" r="5"
-          fill="rgba(255,255,255,0.15)"/>
-
-        {/* Cup lip highlight */}
-        <rect x="77" y="93" width="126" height="4" rx="3"
-          fill="rgba(255,255,255,0.15)"/>
-
-        {/* Saucer shadow */}
-        <ellipse cx="140" cy="200" rx="62" ry="5"
-          fill="rgba(31,111,84,0.07)"/>
       </svg>
+
+      {/* Coffee cup — real image, on top of steam */}
+      <img
+        src="/coffee-cup.png"
+        alt=""
+        aria-hidden="true"
+        style={{
+          width: 200, height: 200,
+          position: "relative", zIndex: 1,
+          filter: "drop-shadow(0 16px 32px rgba(31,111,84,0.18)) drop-shadow(0 4px 8px rgba(0,0,0,0.12))",
+          userSelect: "none",
+        }}
+      />
     </div>
   );
 }
@@ -903,11 +892,11 @@ export default function PeoplePage({ people: peopleProp = [], mugs = [], countri
 
       {/* Global keyframe animations */}
       <style>{`
-        @keyframes pcSteam {
-          0%   { transform: translateY(100px); opacity: 0; }
-          22%  { opacity: 1; }
-          78%  { opacity: 1; }
-          100% { transform: translateY(-280px); opacity: 0; }
+        @keyframes pcSteamBig {
+          0%   { transform: translateY(160px) scaleX(0.7); opacity: 0; }
+          18%  { opacity: 1; }
+          75%  { opacity: 1; }
+          100% { transform: translateY(-560px) scaleX(1.6); opacity: 0; }
         }
         @keyframes bubbleFloat {
           0%, 100% { transform: translateY(0px); }
