@@ -31,9 +31,7 @@ select {
 }
 
 .page {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 24px;
+  width: 100%;
 }
 
 .hero {
@@ -201,10 +199,6 @@ select {
 }
 
 @media (max-width: 700px) {
-  .page {
-    padding: 16px;
-  }
-
   .hero h1 {
     font-size: 28px;
   }

@@ -41,14 +41,15 @@ function generateViewportLayout(containerW, containerH, enriched, isMobile) {
   const maxCount = Math.max(1, enriched[0]?.mugsCount ?? 1);
 
   function realRadius(mugsCount) {
-    const minR = isMobile ? 22 : 30;
-    const maxR = isMobile ? 42 : 60;
-    const norm = Math.sqrt(Math.max(1, mugsCount)) / Math.sqrt(maxCount);
+    const minR = isMobile ? 20 : 26;
+    const maxR = isMobile ? 52 : 78;
+    // Linear norm: 1 mug stays small, many mugs visibly large
+    const norm = Math.max(1, mugsCount) / maxCount;
     return clamp(minR + norm * (maxR - minR), minR, maxR);
   }
 
-  const DECOR_R   = isMobile ? 16 : 22;
-  const CELL_STEP = isMobile ? 68 : 110;
+  const DECOR_R   = isMobile ? 15 : 20;
+  const CELL_STEP = isMobile ? 72 : 118;
   const ROW_STEP  = CELL_STEP * 0.866; // sqrt(3)/2
   const PAD       = isMobile ? 20 : 40;
 
