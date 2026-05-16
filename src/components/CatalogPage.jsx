@@ -427,12 +427,13 @@ function SidebarContent({
   ui,
   countryOptions, stateOptions, cityOptions, collectionOptions, colorOptions,
   countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter,
+  selectedCountryIsUSA,
   onCountryChange, onStateChange, onCityChange, onCollectionChange, onColorChange,
 }) {
   return (
     <>
       <FilterSection title={ui.country} options={countryOptions} selected={countryFilter} onSelect={onCountryChange} />
-      {stateOptions.length > 0 && (
+      {stateOptions.length > 0 && selectedCountryIsUSA && (
         <FilterSection title={ui.state} options={stateOptions} selected={stateFilter} onSelect={onStateChange} />
       )}
       {cityOptions.length > 0 && (
@@ -720,10 +721,17 @@ function CatalogPage({
 
   const sortLabel = { newest: ui.newest, oldest: ui.oldest, titleAsc: ui.titleAsc, numberDesc: ui.numberDesc, numberAsc: ui.numberAsc }[sortMode] || ui.numberDesc;
 
+  const selectedCountryIsUSA = useMemo(() => {
+    if (!countryFilter) return false;
+    const c = countriesById.get(countryFilter);
+    return normalizeIso2(c?.iso2_code) === "US";
+  }, [countryFilter, countriesById]);
+
   const sidebarProps = {
     ui,
     countryOptions, stateOptions, cityOptions, collectionOptions, colorOptions,
     countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter,
+    selectedCountryIsUSA,
     onCountryChange: handleCountryChange,
     onStateChange: handleStateChange,
     onCityChange: setCityFilter,

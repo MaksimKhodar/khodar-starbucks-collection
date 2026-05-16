@@ -7,9 +7,7 @@ import MugCarousel from "./MugCarousel";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const MOBILE_BP  = 768;
-const GAP_DESKTOP = 14;
-const GAP_MOBILE  = 8;
+const MOBILE_BP = 768;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -35,66 +33,55 @@ function getInitials(p) {
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-// ── Radius calculation (sqrt scale) ──────────────────────────────────────────
+// ── Hex-grid viewport layout ──────────────────────────────────────────────────
 
-function calcRadius(mugsCount, maxCount, isMobile) {
-  const minR = isMobile ? 28 : 40;
-  const maxR = isMobile ? 96 : 190;
-  const safe = Math.max(1, mugsCount ?? 1);
-  const norm = Math.sqrt(safe) / Math.sqrt(Math.max(1, maxCount));
-  return clamp(minR + norm * (maxR - minR), minR, maxR);
-}
+function generateViewportLayout(containerW, containerH, enriched, isMobile) {
+  if (!containerW || !enriched.length) return { nodes: [], decorNodes: [] };
 
-// ── Circle-packing (golden-angle spiral search) ───────────────────────────────
+  const maxCount = Math.max(1, enriched[0]?.mugsCount ?? 1);
 
-const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+  function realRadius(mugsCount) {
+    const minR = isMobile ? 22 : 30;
+    const maxR = isMobile ? 42 : 60;
+    const norm = Math.sqrt(Math.max(1, mugsCount)) / Math.sqrt(maxCount);
+    return clamp(minR + norm * (maxR - minR), minR, maxR);
+  }
 
-function packBubbles(nodes, gap) {
-  const placed = [];
-  for (let ni = 0; ni < nodes.length; ni++) {
-    const node = nodes[ni];
-    if (ni === 0) { placed.push({ ...node, x: 0, y: 0 }); continue; }
-    const step = Math.max(node.radius, 20) * 0.55;
-    let placed_ = false;
-    for (let k = 1; k <= 4000; k++) {
-      const r = Math.sqrt(k) * step;
-      const a = k * GOLDEN;
-      const cx = r * Math.cos(a), cy = r * Math.sin(a);
-      let ok = true;
-      for (const p of placed) {
-        const dx = cx - p.x, dy = cy - p.y;
-        if (dx * dx + dy * dy < (p.radius + node.radius + gap) ** 2) { ok = false; break; }
+  const DECOR_R   = isMobile ? 16 : 22;
+  const CELL_STEP = isMobile ? 68 : 110;
+  const ROW_STEP  = CELL_STEP * 0.866; // sqrt(3)/2
+  const PAD       = isMobile ? 20 : 40;
+
+  const positions = [];
+  const rowCount = Math.ceil((containerH - PAD * 2) / ROW_STEP) + 1;
+  const colCount = Math.ceil((containerW - PAD * 2) / CELL_STEP) + 1;
+
+  for (let row = 0; row <= rowCount; row++) {
+    for (let col = 0; col <= colCount; col++) {
+      const x = PAD + col * CELL_STEP + (row % 2 === 1 ? CELL_STEP / 2 : 0);
+      const y = PAD + row * ROW_STEP;
+      if (x >= PAD && x <= containerW - PAD && y >= PAD && y <= containerH - PAD) {
+        positions.push({ x, y });
       }
-      if (ok) { placed.push({ ...node, x: cx, y: cy }); placed_ = true; break; }
     }
-    if (!placed_) placed.push({ ...node, x: 0, y: 0 });
   }
-  return placed;
-}
 
-function fitToContainer(placed, containerW, containerH) {
-  if (!placed.length) return { nodes: [] };
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const p of placed) {
-    minX = Math.min(minX, p.x - p.radius); maxX = Math.max(maxX, p.x + p.radius);
-    minY = Math.min(minY, p.y - p.radius); maxY = Math.max(maxY, p.y + p.radius);
-  }
-  const PAD = 48;
-  const layoutW = maxX - minX, layoutH = maxY - minY;
-  const scaleW = (containerW - PAD * 2) / layoutW;
-  const scaleH = containerH > 0 ? (containerH - PAD * 2) / layoutH : scaleW;
-  const scale  = Math.min(scaleW, scaleH, 1);
-  const scaledW = layoutW * scale, scaledH = layoutH * scale;
-  const offsetX = (containerW - scaledW) / 2 - minX * scale;
-  const offsetY = (containerH > 0 ? (containerH - scaledH) / 2 : PAD) - minY * scale;
-  return {
-    nodes: placed.map(p => ({
-      ...p,
-      x: p.x * scale + offsetX,
-      y: p.y * scale + offsetY,
-      radius: p.radius * scale,
-    })),
-  };
+  const cX = containerW / 2, cY = containerH / 2;
+  positions.sort((a, b) => Math.hypot(a.x - cX, a.y - cY) - Math.hypot(b.x - cX, b.y - cY));
+
+  const count = Math.min(enriched.length, positions.length);
+  const nodes = enriched.slice(0, count).map((person, i) => ({
+    person,
+    x: positions[i].x,
+    y: positions[i].y,
+    radius: realRadius(person.mugsCount),
+  }));
+
+  const decorNodes = positions.slice(count).map((pos, i) => ({
+    x: pos.x, y: pos.y, radius: DECOR_R, index: i,
+  }));
+
+  return { nodes, decorNodes };
 }
 
 // ── AvatarCircle ──────────────────────────────────────────────────────────────
@@ -155,6 +142,26 @@ function BubbleNode({ node, onSelect, index, outerRef, buttonRef, onHoverStart, 
         </button>
       </div>
     </div>
+  );
+}
+
+// ── DecorBubble ───────────────────────────────────────────────────────────────
+
+function DecorBubble({ x, y, radius, index }) {
+  const dur   = 3.1 + (index % 13) * 0.19;
+  const delay = -((index * 0.83) % dur);
+  return (
+    <div style={{
+      position: "absolute",
+      left: x - radius, top: y - radius,
+      width: radius * 2, height: radius * 2,
+      borderRadius: "50%",
+      border: "1.5px solid rgba(31,111,84,0.14)",
+      background: "rgba(255,250,244,0.45)",
+      animation: `bubbleFloat ${dur}s ease-in-out ${delay}s infinite`,
+      pointerEvents: "none",
+      willChange: "transform",
+    }} />
   );
 }
 
@@ -600,12 +607,9 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onRefresh }) 
       .sort((a, b) => b.mugsCount - a.mugsCount)
   ), [people, mugsByPerson]);
 
-  const { nodes } = useMemo(() => {
-    if (!containerW || !containerH || !enriched.length) return { nodes: [] };
-    const maxCount = enriched[0]?.mugsCount ?? 1;
-    const gap = isMobile ? GAP_MOBILE : GAP_DESKTOP;
-    const withR = enriched.map(p => ({ person: p, radius: calcRadius(p.mugsCount, maxCount, isMobile) }));
-    return fitToContainer(packBubbles(withR, gap), containerW, containerH);
+  const { nodes, decorNodes } = useMemo(() => {
+    if (!containerW || !containerH || !enriched.length) return { nodes: [], decorNodes: [] };
+    return generateViewportLayout(containerW, containerH, enriched, isMobile);
   }, [enriched, containerW, containerH, isMobile]);
 
   useEffect(() => {
@@ -772,6 +776,9 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onRefresh }) 
       >
         {/* Transformed canvas */}
         <div ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, transformOrigin: "0 0", willChange: "transform" }}>
+          {decorNodes.map((d) => (
+            <DecorBubble key={`decor-${d.index}`} x={d.x} y={d.y} radius={d.radius} index={d.index} />
+          ))}
           {nodes.map((node, i) => (
             <BubbleNode
               key={node.person.id}

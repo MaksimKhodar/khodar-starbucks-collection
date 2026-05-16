@@ -465,6 +465,7 @@ function MugsAdmin({ onChanged, language = "ru", initialEditMugId = null, onEmbe
       ...emptyForm,
       collection_number: String(nextCollectionNumber),
       slug: buildCollectionSlug(nextCollectionNumber),
+      title: `Кружка #${nextCollectionNumber} - `,
     };
     setForm(f); setInitialForm(f); setPendingImageFiles([]); setIsFormOpen(true); setError("");
   }
