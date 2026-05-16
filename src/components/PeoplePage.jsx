@@ -335,9 +335,12 @@ function MugViewer({ mug, language, onClose }) {
 // ── PersonModal ───────────────────────────────────────────────────────────────
 
 function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin, onClose, onRefresh }) {
-  const [person, setPerson]   = useState(initialPerson);
+  const [person, setPerson]     = useState(initialPerson);
   const [editMode, setEditMode] = useState(false);
-  const [viewingMug, setViewingMug] = useState(null);
+  const [viewingMug, setViewingMug]     = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting]   = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const overlayRef = useRef(null);
   const closeRef   = useRef(null);
 
@@ -371,20 +374,34 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
     const onKey = e => {
       if (e.key === "Escape") {
         if (viewingMug) { setViewingMug(null); return; }
+        if (confirmDelete) { setConfirmDelete(false); setDeleteError(""); return; }
         if (editMode) { setEditMode(false); return; }
         onClose();
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose, editMode, viewingMug]);
+  }, [onClose, editMode, viewingMug, confirmDelete]);
 
-  function handleOverlay(e) { if (e.target === overlayRef.current && !editMode) onClose(); }
+  function handleOverlay(e) { if (e.target === overlayRef.current && !editMode && !confirmDelete) onClose(); }
 
   function handleSaved(updated) {
     setPerson(prev => ({ ...prev, ...updated }));
     setEditMode(false);
     onRefresh?.();
+  }
+
+  async function handleDelete() {
+    setDeleting(true); setDeleteError("");
+    try {
+      const { error: err } = await supabase.from("people").delete().eq("id", person.id);
+      if (err) throw err;
+      onRefresh?.();
+      onClose();
+    } catch (e) {
+      setDeleteError(e.message || "Ошибка при удалении");
+      setDeleting(false);
+    }
   }
 
   return (
@@ -429,13 +446,21 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
             </div>
           </div>
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-            {isAdmin && !editMode && (
-              <button type="button" onClick={() => setEditMode(true)} style={{
-                background: "#f5f0e8", border: "0.5px solid #e2ddd4", borderRadius: 8,
-                padding: "5px 11px", fontSize: 12, fontWeight: 600, color: "#374151", cursor: "pointer",
-              }}>
-                ✎ {language === "en" ? "Edit" : "Изменить"}
-              </button>
+            {isAdmin && !editMode && !confirmDelete && (
+              <>
+                <button type="button" onClick={() => setEditMode(true)} style={{
+                  background: "#f5f0e8", border: "0.5px solid #e2ddd4", borderRadius: 8,
+                  padding: "5px 11px", fontSize: 12, fontWeight: 600, color: "#374151", cursor: "pointer",
+                }}>
+                  ✎ {language === "en" ? "Edit" : "Изменить"}
+                </button>
+                <button type="button" onClick={() => setConfirmDelete(true)} style={{
+                  background: "#fff5f5", border: "0.5px solid #f0c8c8", borderRadius: 8,
+                  padding: "5px 11px", fontSize: 12, fontWeight: 600, color: "#9a2e2e", cursor: "pointer",
+                }}>
+                  🗑
+                </button>
+              </>
             )}
             <button ref={closeRef} type="button" onClick={onClose}
               aria-label={language === "en" ? "Close" : "Закрыть"}
@@ -446,6 +471,35 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
               }}>×</button>
           </div>
         </div>
+
+        {/* Delete confirmation */}
+        {confirmDelete && (
+          <div style={{ margin: "0 24px 16px", padding: "14px 16px", background: "#fff5f5", border: "1px solid #f0c8c8", borderRadius: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#7a2020", marginBottom: 10 }}>
+              {language === "en"
+                ? `Delete "${name}"? This cannot be undone.`
+                : `Удалить «${name}»? Это действие необратимо.`}
+            </div>
+            {deleteError && (
+              <div style={{ fontSize: 12, color: "#9a2e2e", marginBottom: 8 }}>{deleteError}</div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" onClick={handleDelete} disabled={deleting} style={{
+                flex: 1, padding: "7px 0", border: "none", borderRadius: 8,
+                background: "#c0392b", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                opacity: deleting ? 0.6 : 1,
+              }}>
+                {deleting ? "…" : (language === "en" ? "Yes, delete" : "Да, удалить")}
+              </button>
+              <button type="button" onClick={() => { setConfirmDelete(false); setDeleteError(""); }} disabled={deleting} style={{
+                flex: 1, padding: "7px 0", border: "0.5px solid #e2ddd4", borderRadius: 8,
+                background: "transparent", fontSize: 13, cursor: "pointer",
+              }}>
+                {language === "en" ? "Cancel" : "Отмена"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Edit form */}
         {editMode && (
