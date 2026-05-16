@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getMugImageUrl, uploadMugImage } from "../lib/storage";
 import { supabase } from "../lib/supabase";
+import { getCollectionYears, ruYears } from "../lib/utils";
 import ImageCropperModal from "./ImageCropperModal";
 import MugCarousel from "./MugCarousel";
 
@@ -37,8 +38,8 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 // ── Radius calculation (sqrt scale) ──────────────────────────────────────────
 
 function calcRadius(mugsCount, maxCount, isMobile) {
-  const minR = isMobile ? 22 : 30;
-  const maxR = isMobile ? 78 : 130;
+  const minR = isMobile ? 28 : 40;
+  const maxR = isMobile ? 96 : 190;
   const safe = Math.max(1, mugsCount ?? 1);
   const norm = Math.sqrt(safe) / Math.sqrt(Math.max(1, maxCount));
   return clamp(minR + norm * (maxR - minR), minR, maxR);
@@ -71,19 +72,21 @@ function packBubbles(nodes, gap) {
   return placed;
 }
 
-function fitToContainer(placed, containerW) {
-  if (!placed.length) return { nodes: [], height: 320 };
+function fitToContainer(placed, containerW, containerH) {
+  if (!placed.length) return { nodes: [] };
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const p of placed) {
     minX = Math.min(minX, p.x - p.radius); maxX = Math.max(maxX, p.x + p.radius);
     minY = Math.min(minY, p.y - p.radius); maxY = Math.max(maxY, p.y + p.radius);
   }
-  const PAD = 28;
+  const PAD = 48;
   const layoutW = maxX - minX, layoutH = maxY - minY;
-  const scale = layoutW + PAD * 2 > containerW ? (containerW - PAD * 2) / layoutW : 1;
-  const scaledW = layoutW * scale;
+  const scaleW = (containerW - PAD * 2) / layoutW;
+  const scaleH = containerH > 0 ? (containerH - PAD * 2) / layoutH : scaleW;
+  const scale  = Math.min(scaleW, scaleH, 1);
+  const scaledW = layoutW * scale, scaledH = layoutH * scale;
   const offsetX = (containerW - scaledW) / 2 - minX * scale;
-  const offsetY = PAD - minY * scale;
+  const offsetY = (containerH > 0 ? (containerH - scaledH) / 2 : PAD) - minY * scale;
   return {
     nodes: placed.map(p => ({
       ...p,
@@ -91,7 +94,6 @@ function fitToContainer(placed, containerW) {
       y: p.y * scale + offsetY,
       radius: p.radius * scale,
     })),
-    height: layoutH * scale + PAD * 2,
   };
 }
 
@@ -120,41 +122,25 @@ function AvatarCircle({ person, size, alt }) {
 
 // ── BubbleNode ────────────────────────────────────────────────────────────────
 
-function BubbleNode({ node, isMobile, onSelect, index, outerRef, buttonRef, onHoverStart, onHoverEnd }) {
-  const [showTip, setShowTip] = useState(false);
+function BubbleNode({ node, onSelect, index, outerRef, buttonRef, onHoverStart, onHoverEnd }) {
   const { person, x, y, radius } = node;
   const diameter = radius * 2;
   const name = getDisplayName(person);
-  const handle = parseHandle(person.instagram_url);
-
-  // Each bubble gets a unique float duration + negative delay (= phase offset)
-  const dur   = 2.6 + (index % 9) * 0.22;  // 2.6 – 4.4 s
-  const delay = -((index * 0.61) % dur);    // random-looking phase
+  const dur   = 2.6 + (index % 9) * 0.22;
+  const delay = -((index * 0.61) % dur);
 
   return (
-    <div
-      ref={outerRef}
-      style={{
-        position: "absolute",
-        left: x - radius,
-        top:  y - radius,
-        willChange: "transform",
-      }}
-    >
-      {/* Inner: gentle float animation */}
-      <div style={{
-        animation: `bubbleFloat ${dur}s ease-in-out ${delay}s infinite`,
-        willChange: "transform",
-      }}>
+    <div ref={outerRef} style={{ position: "absolute", left: x - radius, top: y - radius, willChange: "transform" }}>
+      <div style={{ animation: `bubbleFloat ${dur}s ease-in-out ${delay}s infinite`, willChange: "transform" }}>
         <button
           ref={buttonRef}
           type="button"
           aria-label={`${name}, ${person.mugsCount} кружек`}
           onClick={() => onSelect(person)}
-          onMouseEnter={() => { setShowTip(true);  onHoverStart?.(index); }}
-          onMouseLeave={() => { setShowTip(false); onHoverEnd?.(index); }}
-          onFocus={() => { setShowTip(true);  onHoverStart?.(index); }}
-          onBlur={()  => { setShowTip(false); onHoverEnd?.(index); }}
+          onMouseEnter={() => onHoverStart?.(index)}
+          onMouseLeave={() => onHoverEnd?.(index)}
+          onFocus={() => onHoverStart?.(index)}
+          onBlur={() => onHoverEnd?.(index)}
           style={{
             display: "block", width: diameter, height: diameter,
             border: "none", padding: 0, borderRadius: "50%",
@@ -167,30 +153,6 @@ function BubbleNode({ node, isMobile, onSelect, index, outerRef, buttonRef, onHo
         >
           <AvatarCircle person={person} size={diameter} alt={`${name}, ${person.mugsCount} кружек`} />
         </button>
-
-        {/* Tooltip (desktop only) */}
-        {!isMobile && showTip && (
-          <div aria-hidden style={{
-            position: "absolute",
-            top: "50%", left: diameter + 10,
-            transform: "translateY(-50%)",
-            background: "rgba(21,49,38,0.95)",
-            color: "#fff", borderRadius: 10,
-            padding: "9px 14px", fontSize: 12,
-            whiteSpace: "nowrap", pointerEvents: "none",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.25)", zIndex: 50,
-          }}>
-            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>{name}</div>
-            {handle && <div style={{ color: "#9dc9b0", marginBottom: 3, fontSize: 11 }}>{handle}</div>}
-            <div style={{ color: "#c5e8d8", fontSize: 12 }}>
-              {person.mugsCount} {person.mugsCount === 1 ? "кружка" : person.mugsCount < 5 ? "кружки" : "кружек"}
-            </div>
-            <div style={{
-              position: "absolute", left: -4, top: "50%", transform: "translateY(-50%) rotate(45deg)",
-              width: 8, height: 8, background: "rgba(21,49,38,0.95)",
-            }} />
-          </div>
-        )}
       </div>
     </div>
   );
@@ -589,58 +551,39 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
   );
 }
 
-// ── SizeLegend ────────────────────────────────────────────────────────────────
+// ── BubbleCloud (zoomable / pannable) ────────────────────────────────────────
 
-function SizeLegend({ language }) {
-  const samples = [
-    { r: 14, label: language === "en" ? "1 mug"  : "1 кружка" },
-    { r: 22, label: language === "en" ? "~5"     : "~5 кружек" },
-    { r: 32, label: language === "en" ? "~15"    : "~15 кружек" },
-    { r: 44, label: language === "en" ? "~30+"   : "~30+ кружек" },
-  ];
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "20px 16px 0" }}>
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 24, flexWrap: "wrap" }}>
-        {samples.map(s => (
-          <div key={s.r} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-            <div style={{ width: s.r * 2, height: s.r * 2, borderRadius: "50%", background: "#e8e1d7", boxShadow: "0 0 0 2px rgba(255,255,255,0.8), 0 2px 8px rgba(0,0,0,0.1)" }} />
-            <span style={{ fontSize: 10, color: "#8a9e96" }}>{s.label}</span>
-          </div>
-        ))}
-      </div>
-      <p style={{ textAlign: "center", fontSize: 12, color: "#8a9e96", margin: 0 }}>
-        {language === "en" ? "The larger the photo, the more mugs gifted" : "Чем больше фото — тем больше подарено кружек"}
-      </p>
-    </div>
-  );
-}
-
-// ── BubbleCloud ───────────────────────────────────────────────────────────────
-
-function BubbleCloud({ people, mugs, countries, language, isAdmin, onSelect, onRefresh }) {
+function BubbleCloud({ people, mugs, countries, language, isAdmin, onRefresh }) {
   const containerRef  = useRef(null);
+  const canvasRef     = useRef(null);
   const outerRefs     = useRef([]);
   const buttonRefs    = useRef([]);
-  const nodeDataRef   = useRef([]);  // { x, y, r }[] for wave math
+  const nodeDataRef   = useRef([]);
   const hoveredIdxRef = useRef(-1);
+  const transformRef  = useRef({ scale: 1, tx: 0, ty: 0 });
+  const isDragging    = useRef(false);
+  const dragStart     = useRef({ x: 0, y: 0, tx: 0, ty: 0 });
+  const lastTouches   = useRef([]);
 
   const [containerW, setContainerW] = useState(0);
+  const [containerH, setContainerH] = useState(0);
   const [isMobile,   setIsMobile]   = useState(false);
   const [selected,   setSelected]   = useState(null);
+  const [tooltip,    setTooltip]    = useState(null);
 
-  // Measure container
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(entries => {
-      const w = entries[0]?.contentRect.width ?? 0;
-      if (w > 0) { setContainerW(w); setIsMobile(w < MOBILE_BP); }
+      const rect = entries[0]?.contentRect;
+      if (!rect) return;
+      if (rect.width  > 0) { setContainerW(rect.width);  setIsMobile(rect.width < MOBILE_BP); }
+      if (rect.height > 0)   setContainerH(rect.height);
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  // Mug counts
   const mugsByPerson = useMemo(() => {
     const m = {};
     mugs.forEach(mug => {
@@ -651,63 +594,65 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onSelect, onR
     return m;
   }, [mugs]);
 
-  // Enriched + sorted
-  const enriched = useMemo(() => {
-    return [...people]
+  const enriched = useMemo(() => (
+    [...people]
       .map(p => ({ ...p, mugsCount: mugsByPerson[p.id] || 0 }))
-      .sort((a, b) => b.mugsCount - a.mugsCount);
-  }, [people, mugsByPerson]);
+      .sort((a, b) => b.mugsCount - a.mugsCount)
+  ), [people, mugsByPerson]);
 
-  // Layout
-  const { nodes, height } = useMemo(() => {
-    if (!containerW || !enriched.length) return { nodes: [], height: 320 };
+  const { nodes } = useMemo(() => {
+    if (!containerW || !containerH || !enriched.length) return { nodes: [] };
     const maxCount = enriched[0]?.mugsCount ?? 1;
     const gap = isMobile ? GAP_MOBILE : GAP_DESKTOP;
     const withR = enriched.map(p => ({ person: p, radius: calcRadius(p.mugsCount, maxCount, isMobile) }));
-    return fitToContainer(packBubbles(withR, gap), containerW);
-  }, [enriched, containerW, isMobile]);
+    return fitToContainer(packBubbles(withR, gap), containerW, containerH);
+  }, [enriched, containerW, containerH, isMobile]);
 
-  // Keep nodeDataRef in sync
   useEffect(() => {
     nodeDataRef.current = nodes.map(n => ({ x: n.x, y: n.y, r: n.radius }));
-    outerRefs.current.length = nodes.length;
+    outerRefs.current.length  = nodes.length;
     buttonRefs.current.length = nodes.length;
+    // Reset to identity transform when layout recomputes
+    applyTransformDirect({ scale: 1, tx: 0, ty: 0 });
   }, [nodes]);
 
-  // Wave animation + shadow (direct DOM, no re-render)
+  function applyTransformDirect(z) {
+    transformRef.current = z;
+    if (canvasRef.current)
+      canvasRef.current.style.transform = `translate(${z.tx}px,${z.ty}px) scale(${z.scale})`;
+  }
+
+  // ── Wave + shadow ─────────────────────────────────────────────────────────────
+
   const applyWave = useCallback((hovIdx) => {
     const nd = nodeDataRef.current;
     outerRefs.current.forEach((el, i) => {
       if (!el || !nd[i]) return;
       const btn = buttonRefs.current[i];
       if (i === hovIdx) {
-        // Rise up with spring easing
-        el.style.transform  = "translateY(-22px) scale(1.08)";
-        el.style.transition = "transform 0.22s cubic-bezier(0.34,1.56,0.64,1)";
+        el.style.transform  = "translateY(-30px) scale(1.35)";
+        el.style.transition = "transform 0.2s cubic-bezier(0.34,1.56,0.64,1)";
         el.style.zIndex     = "20";
-        // Deep ground shadow — stays "below" while button lifts
         if (btn) {
-          btn.style.boxShadow = "0 32px 56px rgba(21,49,38,0.42), 0 12px 20px rgba(0,0,0,0.2), 0 0 0 3px rgba(255,255,255,0.95)";
-          btn.style.transition = "box-shadow 0.22s ease";
+          btn.style.boxShadow = "0 36px 60px rgba(21,49,38,0.45), 0 12px 24px rgba(0,0,0,0.22), 0 0 0 3px rgba(255,255,255,0.95)";
+          btn.style.transition = "box-shadow 0.2s ease";
         }
       } else {
-        // Push away from hovered bubble
         let px = 0, py = 0;
         if (hovIdx >= 0 && nd[hovIdx]) {
           const h = nd[hovIdx];
           const dx = nd[i].x - h.x, dy = nd[i].y - h.y;
           const d  = Math.sqrt(dx * dx + dy * dy);
-          const infl = h.r * 5;
+          const infl = h.r * 5.5;
           if (d < infl && d > 0) {
-            const t  = (1 - d / infl) ** 1.5;
-            px = (dx / d) * t * 24;
-            py = (dy / d) * t * 24;
+            const t = (1 - d / infl) ** 1.5;
+            px = (dx / d) * t * 34;
+            py = (dy / d) * t * 34;
           }
         }
         el.style.transform  = (px || py) ? `translate(${px.toFixed(1)}px,${py.toFixed(1)}px)` : "";
         el.style.transition = "transform 0.3s ease";
         el.style.zIndex     = "1";
-        // Restore normal shadow
         if (btn) {
           btn.style.boxShadow = "0 4px 14px rgba(21,49,38,0.16), 0 0 0 2.5px rgba(255,255,255,0.92)";
           btn.style.transition = "box-shadow 0.3s ease";
@@ -716,46 +661,173 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onSelect, onR
     });
   }, []);
 
-  const handleHoverStart = useCallback((idx) => { hoveredIdxRef.current = idx; applyWave(idx); }, [applyWave]);
-  const handleHoverEnd   = useCallback((idx) => {
-    if (hoveredIdxRef.current === idx) { hoveredIdxRef.current = -1; applyWave(-1); }
+  const handleHoverStart = useCallback((idx) => {
+    if (isDragging.current) return;
+    hoveredIdxRef.current = idx;
+    applyWave(idx);
+    // Screen-space tooltip position
+    const nd  = nodeDataRef.current[idx];
+    const node = nodes[idx];
+    if (!nd || !node || !containerRef.current) return;
+    const { scale, tx, ty } = transformRef.current;
+    const rect = containerRef.current.getBoundingClientRect();
+    setTooltip({
+      person: node.person,
+      x: rect.left + (nd.x + nd.r) * scale + tx + 10,
+      y: rect.top  +  nd.y          * scale + ty,
+    });
+  }, [applyWave, nodes]);
+
+  const handleHoverEnd = useCallback((idx) => {
+    if (hoveredIdxRef.current === idx) {
+      hoveredIdxRef.current = -1;
+      applyWave(-1);
+      setTooltip(null);
+    }
   }, [applyWave]);
 
-  const handleSelect = useCallback((person) => setSelected(person), []);
+  // ── Zoom / Pan ────────────────────────────────────────────────────────────────
+
+  function zoomAt(mx, my, factor) {
+    const { scale, tx, ty } = transformRef.current;
+    const newScale = clamp(scale * factor, 0.12, 5);
+    const ratio = newScale / scale;
+    applyTransformDirect({ scale: newScale, tx: mx - (mx - tx) * ratio, ty: my - (my - ty) * ratio });
+  }
+
+  function handleWheel(e) {
+    e.preventDefault();
+    const rect = containerRef.current.getBoundingClientRect();
+    zoomAt(e.clientX - rect.left, e.clientY - rect.top, e.deltaY < 0 ? 1.1 : 0.91);
+  }
+
+  function handleMouseDown(e) {
+    if (e.button !== 0) return;
+    isDragging.current = true;
+    dragStart.current = { x: e.clientX, y: e.clientY, tx: transformRef.current.tx, ty: transformRef.current.ty };
+    if (containerRef.current) containerRef.current.style.cursor = "grabbing";
+  }
+
+  function handleMouseMove(e) {
+    if (!isDragging.current) return;
+    applyTransformDirect({
+      ...transformRef.current,
+      tx: dragStart.current.tx + (e.clientX - dragStart.current.x),
+      ty: dragStart.current.ty + (e.clientY - dragStart.current.y),
+    });
+    if (hoveredIdxRef.current >= 0) { hoveredIdxRef.current = -1; applyWave(-1); setTooltip(null); }
+  }
+
+  function handleMouseUp() {
+    isDragging.current = false;
+    if (containerRef.current) containerRef.current.style.cursor = "grab";
+  }
+
+  function handleTouchStart(e) {
+    lastTouches.current = Array.from(e.touches);
+    if (e.touches.length === 1) {
+      isDragging.current = true;
+      const t = e.touches[0];
+      dragStart.current = { x: t.clientX, y: t.clientY, tx: transformRef.current.tx, ty: transformRef.current.ty };
+    }
+  }
+
+  function handleTouchMove(e) {
+    e.preventDefault();
+    if (e.touches.length === 2 && lastTouches.current.length >= 2) {
+      const [t1, t2] = e.touches, [lt1, lt2] = lastTouches.current;
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const last = Math.hypot(lt2.clientX - lt1.clientX, lt2.clientY - lt1.clientY);
+      if (last > 0) {
+        const rect = containerRef.current.getBoundingClientRect();
+        zoomAt((t1.clientX + t2.clientX) / 2 - rect.left, (t1.clientY + t2.clientY) / 2 - rect.top, dist / last);
+      }
+    } else if (e.touches.length === 1 && isDragging.current) {
+      const t = e.touches[0];
+      applyTransformDirect({ ...transformRef.current, tx: dragStart.current.tx + t.clientX - dragStart.current.x, ty: dragStart.current.ty + t.clientY - dragStart.current.y });
+    }
+    lastTouches.current = Array.from(e.touches);
+  }
+
+  function handleTouchEnd() { isDragging.current = false; lastTouches.current = []; }
+
+  function resetZoom() { applyTransformDirect({ scale: 1, tx: 0, ty: 0 }); }
+
+  const handleSelect = useCallback((p) => setSelected(p), []);
   const handleClose  = useCallback(() => setSelected(null), []);
 
   return (
     <>
-      <div ref={containerRef} style={{ width: "100%" }}>
-        {containerW > 0 && nodes.length > 0 && (
-          <div style={{ position: "relative", width: "100%", height, overflow: "visible" }}>
-            {nodes.map((node, i) => (
-              <BubbleNode
-                key={node.person.id}
-                node={node}
-                isMobile={isMobile}
-                onSelect={handleSelect}
-                index={i}
-                outerRef={el => { outerRefs.current[i] = el; }}
-                buttonRef={el => { buttonRefs.current[i] = el; }}
-                onHoverStart={handleHoverStart}
-                onHoverEnd={handleHoverEnd}
-              />
-            ))}
-          </div>
-        )}
+      <div
+        ref={containerRef}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{ width: "100%", height: "100%", overflow: "hidden", cursor: "grab", position: "relative", touchAction: "none" }}
+      >
+        {/* Transformed canvas */}
+        <div ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, transformOrigin: "0 0", willChange: "transform" }}>
+          {nodes.map((node, i) => (
+            <BubbleNode
+              key={node.person.id}
+              node={node}
+              isMobile={isMobile}
+              onSelect={handleSelect}
+              index={i}
+              outerRef={el => { outerRefs.current[i] = el; }}
+              buttonRef={el => { buttonRefs.current[i] = el; }}
+              onHoverStart={handleHoverStart}
+              onHoverEnd={handleHoverEnd}
+            />
+          ))}
+        </div>
+
+        {/* Zoom controls */}
+        <div style={{ position: "absolute", bottom: 16, right: 16, display: "flex", flexDirection: "column", gap: 6, zIndex: 30 }}>
+          {[
+            { label: "+", fn: () => zoomAt(containerW / 2, containerH / 2, 1.3) },
+            { label: "−", fn: () => zoomAt(containerW / 2, containerH / 2, 0.77) },
+            { label: "⊙", fn: resetZoom },
+          ].map(b => (
+            <button key={b.label} type="button" onClick={b.fn} style={{
+              width: 36, height: 36, border: "0.5px solid #e8e2d9", borderRadius: 8,
+              background: "rgba(255,255,255,0.92)", backdropFilter: "blur(8px)",
+              color: "#153126", fontSize: b.label === "⊙" ? 15 : 20, fontWeight: 500,
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+            }}>{b.label}</button>
+          ))}
+        </div>
       </div>
 
+      {/* Screen-space tooltip (outside transformed canvas) */}
+      {tooltip && !isMobile && (
+        <div aria-hidden style={{
+          position: "fixed", left: tooltip.x, top: tooltip.y,
+          transform: "translateY(-50%)",
+          background: "rgba(21,49,38,0.95)", color: "#fff",
+          borderRadius: 10, padding: "9px 14px", fontSize: 12,
+          whiteSpace: "nowrap", pointerEvents: "none", zIndex: 500,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.25)",
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>{getDisplayName(tooltip.person)}</div>
+          {parseHandle(tooltip.person.instagram_url) && (
+            <div style={{ color: "#9dc9b0", marginBottom: 3, fontSize: 11 }}>{parseHandle(tooltip.person.instagram_url)}</div>
+          )}
+          <div style={{ color: "#c5e8d8" }}>
+            {tooltip.person.mugsCount} {tooltip.person.mugsCount === 1 ? "кружка" : tooltip.person.mugsCount < 5 ? "кружки" : "кружек"}
+          </div>
+          <div style={{ position: "absolute", left: -4, top: "50%", transform: "translateY(-50%) rotate(45deg)", width: 8, height: 8, background: "rgba(21,49,38,0.95)" }} />
+        </div>
+      )}
+
       {selected && (
-        <PersonModal
-          person={selected}
-          mugs={mugs}
-          countries={countries}
-          language={language}
-          isAdmin={isAdmin}
-          onClose={handleClose}
-          onRefresh={onRefresh}
-        />
+        <PersonModal person={selected} mugs={mugs} countries={countries} language={language} isAdmin={isAdmin} onClose={handleClose} onRefresh={onRefresh} />
       )}
     </>
   );
@@ -764,64 +836,52 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onSelect, onR
 // ── PeoplePage ────────────────────────────────────────────────────────────────
 
 export default function PeoplePage({ people: peopleProp = [], mugs = [], countries = [], language = "ru", isAdmin = false, onRefresh }) {
-  const visible = useMemo(
-    () => (peopleProp ?? []).filter(p => p.is_visible !== false),
-    [peopleProp],
-  );
+  const visible = useMemo(() => (peopleProp ?? []).filter(p => p.is_visible !== false), [peopleProp]);
+  const years = getCollectionYears();
 
   return (
-    <div style={{ background: "#faf7f3", minHeight: "100vh" }}>
+    <div style={{ height: "calc(100vh - 52px)", display: "flex", flexDirection: "column", background: "#faf7f3", overflow: "hidden" }}>
 
-      {/* Hero */}
-      <div style={{ textAlign: "center", padding: "52px 24px 28px", maxWidth: 640, margin: "0 auto" }}>
-        <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, color: "#1f6f54", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-          Starbucks Mug Collection
-        </p>
-        <h1 style={{ margin: "0 0 14px", fontSize: 32, fontWeight: 800, color: "#153126", lineHeight: 1.2 }}>
+      {/* Compact header */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 20px", height: 52, flexShrink: 0,
+        background: "#fff", borderBottom: "0.5px solid #e8e2d9",
+        gap: 16, flexWrap: "wrap",
+      }}>
+        <h1 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#153126", whiteSpace: "nowrap" }}>
           {language === "en" ? "People Behind the Collection" : "Люди за коллекцией"}
         </h1>
-        <p style={{ margin: "0 0 28px", fontSize: 14, color: "#5f6f66", lineHeight: 1.7 }}>
-          {language === "en"
-            ? `${visible.length} friends helped grow this collection across ${new Date().getFullYear() - 2011} years of travels.`
-            : `${visible.length} друзей помогли собрать эту коллекцию за ${new Date().getFullYear() - 2011} лет путешествий.`}
-        </p>
-        <div style={{ display: "flex", gap: 24, justifyContent: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#5f6f66" }}>
           {[
             { n: visible.length, label: language === "en" ? "contributors" : "участников" },
             { n: mugs.length,    label: language === "en" ? "mugs"         : "кружек" },
-            { n: new Date().getFullYear() - 2011, label: language === "en" ? "years" : "лет" },
+            { n: years,          label: language === "en" ? "years"        : "лет" },
           ].map(s => (
-            <div key={s.label} style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 28, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{s.n}</div>
-              <div style={{ fontSize: 12, color: "#8a9e96", marginTop: 3 }}>{s.label}</div>
-            </div>
+            <span key={s.label} style={{ whiteSpace: "nowrap" }}>
+              <strong style={{ color: "#153126" }}>{s.n}</strong>{" "}{s.label}
+            </span>
           ))}
         </div>
+        <span style={{ fontSize: 11, color: "#b8c2bc", whiteSpace: "nowrap" }}>
+          {language === "en" ? "Scroll to zoom · drag to explore" : "Колесо — масштаб · перетащи — навигация"}
+        </span>
       </div>
 
-      {/* Cloud */}
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 16px" }}>
+      {/* Full-height bubble stage */}
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
         {visible.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "80px 0", color: "#8a9e96" }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>☕</div>
-            <p style={{ fontSize: 14 }}>{language === "en" ? "No contributors yet." : "Пока нет участников."}</p>
+          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#8a9e96" }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>☕</div>
+              <p style={{ fontSize: 14 }}>{language === "en" ? "No contributors yet." : "Пока нет участников."}</p>
+            </div>
           </div>
         ) : (
-          <BubbleCloud
-            people={visible}
-            mugs={mugs}
-            countries={countries}
-            language={language}
-            isAdmin={isAdmin}
-            onRefresh={onRefresh}
-          />
+          <BubbleCloud people={visible} mugs={mugs} countries={countries} language={language} isAdmin={isAdmin} onRefresh={onRefresh} />
         )}
       </div>
 
-      {visible.length > 0 && <SizeLegend language={language} />}
-      <div style={{ height: 60 }} />
-
-      {/* Global keyframe animations */}
       <style>{`
         @keyframes bubbleFloat {
           0%, 100% { transform: translateY(0px); }
@@ -831,9 +891,7 @@ export default function PeoplePage({ people: peopleProp = [], mugs = [], countri
           from { opacity: 0; transform: scale(0.88); }
           to   { opacity: 1; transform: scale(1); }
         }
-        @keyframes modalBgIn {
-          from { opacity: 0; } to { opacity: 1; }
-        }
+        @keyframes modalBgIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes modalIn {
           from { opacity: 0; transform: translateY(14px); }
           to   { opacity: 1; transform: translateY(0); }
