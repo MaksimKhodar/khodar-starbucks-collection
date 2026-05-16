@@ -7,9 +7,7 @@ import MugCarousel from "./MugCarousel";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const MOBILE_BP  = 768;
-const GAP_DESKTOP = 14;
-const GAP_MOBILE  = 8;
+const MOBILE_BP = 768;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -35,66 +33,94 @@ function getInitials(p) {
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-// ── Radius calculation (sqrt scale) ──────────────────────────────────────────
+// ── Random packing layout ─────────────────────────────────────────────────────
 
-function calcRadius(mugsCount, maxCount, isMobile) {
-  const minR = isMobile ? 28 : 40;
-  const maxR = isMobile ? 96 : 190;
-  const safe = Math.max(1, mugsCount ?? 1);
-  const norm = Math.sqrt(safe) / Math.sqrt(Math.max(1, maxCount));
-  return clamp(minR + norm * (maxR - minR), minR, maxR);
-}
+function generateRandomLayout(containerW, containerH, enriched, isMobile) {
+  if (!containerW || !containerH || !enriched.length) return { nodes: [], decorNodes: [] };
 
-// ── Circle-packing (golden-angle spiral search) ───────────────────────────────
+  const maxCount = Math.max(1, enriched[0]?.mugsCount ?? 1);
 
-const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+  // Scale radii with viewport so circles shrink (but don't disappear) on resize
+  const refW = isMobile ? 400 : 1100;
+  const refH = isMobile ? 600 : 680;
+  const vscale = Math.min(1, containerW / refW, containerH / refH);
 
-function packBubbles(nodes, gap) {
+  const minR = Math.max(isMobile ? 12 : 16, Math.round((isMobile ? 20 : 26) * vscale));
+  const maxR = Math.max(isMobile ? 20 : 28, Math.round((isMobile ? 52 : 78) * vscale));
+
+  function realRadius(mugsCount) {
+    const norm = Math.max(1, mugsCount) / maxCount;
+    return Math.round(clamp(minR + norm * (maxR - minR), minR, maxR));
+  }
+
+  const GAP     = Math.max(4, Math.round((isMobile ? 8  : 12) * vscale));
+  const PAD     = Math.max(6, Math.round((isMobile ? 16 : 28) * vscale));
+  const DECOR_R = Math.max(8, Math.round((isMobile ? 14 : 19) * vscale));
+
+  // Stable seeded RNG (mulberry32) — same people → same layout
+  let seed = 0;
+  for (const p of enriched) {
+    for (let i = 0, s = String(p.id); i < s.length; i++)
+      seed = (Math.imul(seed ^ s.charCodeAt(i), 0x9e3779b1) >>> 0);
+  }
+  if (!seed) seed = 0xdeadbeef;
+  function rand() {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let z = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    z ^= z + Math.imul(z ^ (z >>> 7), 61 | z);
+    return ((z ^ (z >>> 14)) >>> 0) / 0x100000000;
+  }
+
   const placed = [];
-  for (let ni = 0; ni < nodes.length; ni++) {
-    const node = nodes[ni];
-    if (ni === 0) { placed.push({ ...node, x: 0, y: 0 }); continue; }
-    const step = Math.max(node.radius, 20) * 0.55;
-    let placed_ = false;
-    for (let k = 1; k <= 4000; k++) {
-      const r = Math.sqrt(k) * step;
-      const a = k * GOLDEN;
-      const cx = r * Math.cos(a), cy = r * Math.sin(a);
-      let ok = true;
-      for (const p of placed) {
-        const dx = cx - p.x, dy = cy - p.y;
-        if (dx * dx + dy * dy < (p.radius + node.radius + gap) ** 2) { ok = false; break; }
-      }
-      if (ok) { placed.push({ ...node, x: cx, y: cy }); placed_ = true; break; }
-    }
-    if (!placed_) placed.push({ ...node, x: 0, y: 0 });
-  }
-  return placed;
-}
 
-function fitToContainer(placed, containerW, containerH) {
-  if (!placed.length) return { nodes: [] };
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const p of placed) {
-    minX = Math.min(minX, p.x - p.radius); maxX = Math.max(maxX, p.x + p.radius);
-    minY = Math.min(minY, p.y - p.radius); maxY = Math.max(maxY, p.y + p.radius);
+  function overlaps(x, y, r) {
+    for (const p of placed) {
+      const dx = x - p.x, dy = y - p.y;
+      if (dx * dx + dy * dy < (p.r + r + GAP) ** 2) return true;
+    }
+    return false;
   }
-  const PAD = 48;
-  const layoutW = maxX - minX, layoutH = maxY - minY;
-  const scaleW = (containerW - PAD * 2) / layoutW;
-  const scaleH = containerH > 0 ? (containerH - PAD * 2) / layoutH : scaleW;
-  const scale  = Math.min(scaleW, scaleH, 1);
-  const scaledW = layoutW * scale, scaledH = layoutH * scale;
-  const offsetX = (containerW - scaledW) / 2 - minX * scale;
-  const offsetY = (containerH > 0 ? (containerH - scaledH) / 2 : PAD) - minY * scale;
-  return {
-    nodes: placed.map(p => ({
-      ...p,
-      x: p.x * scale + offsetX,
-      y: p.y * scale + offsetY,
-      radius: p.radius * scale,
-    })),
-  };
+
+  function tryPlace(r, attempts) {
+    const xMin = PAD + r, xMax = containerW - PAD - r;
+    const yMin = PAD + r, yMax = containerH - PAD - r;
+    if (xMin > xMax || yMin > yMax) return null;
+    for (let i = 0; i < attempts; i++) {
+      const x = xMin + rand() * (xMax - xMin);
+      const y = yMin + rand() * (yMax - yMin);
+      if (!overlaps(x, y, r)) return { x, y };
+    }
+    return null;
+  }
+
+  // Place real people biggest-first; shrink radius if needed to guarantee placement
+  const nodes = [];
+  for (const person of enriched) {
+    let r = realRadius(person.mugsCount);
+    let pos = tryPlace(r, 900);
+    if (!pos) { r = Math.max(minR, Math.round(r * 0.75)); pos = tryPlace(r, 900); }
+    if (!pos) { r = minR; pos = tryPlace(r, 2000); }
+    if (pos) {
+      placed.push({ x: pos.x, y: pos.y, r });
+      nodes.push({ person, x: pos.x, y: pos.y, radius: r });
+    }
+  }
+
+  // Fill remaining space with decorative circles until canvas is saturated
+  const decorNodes = [];
+  let fails = 0;
+  while (fails < 80 && decorNodes.length < 200) {
+    const pos = tryPlace(DECOR_R, 12);
+    if (pos) {
+      placed.push({ x: pos.x, y: pos.y, r: DECOR_R });
+      decorNodes.push({ x: pos.x, y: pos.y, radius: DECOR_R, index: decorNodes.length });
+      fails = 0;
+    } else {
+      fails++;
+    }
+  }
+
+  return { nodes, decorNodes };
 }
 
 // ── AvatarCircle ──────────────────────────────────────────────────────────────
@@ -155,6 +181,26 @@ function BubbleNode({ node, onSelect, index, outerRef, buttonRef, onHoverStart, 
         </button>
       </div>
     </div>
+  );
+}
+
+// ── DecorBubble ───────────────────────────────────────────────────────────────
+
+function DecorBubble({ x, y, radius, index }) {
+  const dur   = 3.1 + (index % 13) * 0.19;
+  const delay = -((index * 0.83) % dur);
+  return (
+    <div style={{
+      position: "absolute",
+      left: x - radius, top: y - radius,
+      width: radius * 2, height: radius * 2,
+      borderRadius: "50%",
+      border: "1.5px solid rgba(31,111,84,0.14)",
+      background: "rgba(255,250,244,0.45)",
+      animation: `bubbleFloat ${dur}s ease-in-out ${delay}s infinite`,
+      pointerEvents: "none",
+      willChange: "transform",
+    }} />
   );
 }
 
@@ -327,9 +373,12 @@ function MugViewer({ mug, language, onClose }) {
 // ── PersonModal ───────────────────────────────────────────────────────────────
 
 function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin, onClose, onRefresh }) {
-  const [person, setPerson]   = useState(initialPerson);
+  const [person, setPerson]     = useState(initialPerson);
   const [editMode, setEditMode] = useState(false);
-  const [viewingMug, setViewingMug] = useState(null);
+  const [viewingMug, setViewingMug]     = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting]   = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const overlayRef = useRef(null);
   const closeRef   = useRef(null);
 
@@ -363,20 +412,34 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
     const onKey = e => {
       if (e.key === "Escape") {
         if (viewingMug) { setViewingMug(null); return; }
+        if (confirmDelete) { setConfirmDelete(false); setDeleteError(""); return; }
         if (editMode) { setEditMode(false); return; }
         onClose();
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose, editMode, viewingMug]);
+  }, [onClose, editMode, viewingMug, confirmDelete]);
 
-  function handleOverlay(e) { if (e.target === overlayRef.current && !editMode) onClose(); }
+  function handleOverlay(e) { if (e.target === overlayRef.current && !editMode && !confirmDelete) onClose(); }
 
   function handleSaved(updated) {
     setPerson(prev => ({ ...prev, ...updated }));
     setEditMode(false);
     onRefresh?.();
+  }
+
+  async function handleDelete() {
+    setDeleting(true); setDeleteError("");
+    try {
+      const { error: err } = await supabase.from("people").delete().eq("id", person.id);
+      if (err) throw err;
+      onRefresh?.();
+      onClose();
+    } catch (e) {
+      setDeleteError(e.message || "Ошибка при удалении");
+      setDeleting(false);
+    }
   }
 
   return (
@@ -421,13 +484,21 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
             </div>
           </div>
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-            {isAdmin && !editMode && (
-              <button type="button" onClick={() => setEditMode(true)} style={{
-                background: "#f5f0e8", border: "0.5px solid #e2ddd4", borderRadius: 8,
-                padding: "5px 11px", fontSize: 12, fontWeight: 600, color: "#374151", cursor: "pointer",
-              }}>
-                ✎ {language === "en" ? "Edit" : "Изменить"}
-              </button>
+            {isAdmin && !editMode && !confirmDelete && (
+              <>
+                <button type="button" onClick={() => setEditMode(true)} style={{
+                  background: "#f5f0e8", border: "0.5px solid #e2ddd4", borderRadius: 8,
+                  padding: "5px 11px", fontSize: 12, fontWeight: 600, color: "#374151", cursor: "pointer",
+                }}>
+                  ✎ {language === "en" ? "Edit" : "Изменить"}
+                </button>
+                <button type="button" onClick={() => setConfirmDelete(true)} style={{
+                  background: "#fff5f5", border: "0.5px solid #f0c8c8", borderRadius: 8,
+                  padding: "5px 11px", fontSize: 12, fontWeight: 600, color: "#9a2e2e", cursor: "pointer",
+                }}>
+                  🗑
+                </button>
+              </>
             )}
             <button ref={closeRef} type="button" onClick={onClose}
               aria-label={language === "en" ? "Close" : "Закрыть"}
@@ -438,6 +509,35 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
               }}>×</button>
           </div>
         </div>
+
+        {/* Delete confirmation */}
+        {confirmDelete && (
+          <div style={{ margin: "0 24px 16px", padding: "14px 16px", background: "#fff5f5", border: "1px solid #f0c8c8", borderRadius: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#7a2020", marginBottom: 10 }}>
+              {language === "en"
+                ? `Delete "${name}"? This cannot be undone.`
+                : `Удалить «${name}»? Это действие необратимо.`}
+            </div>
+            {deleteError && (
+              <div style={{ fontSize: 12, color: "#9a2e2e", marginBottom: 8 }}>{deleteError}</div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" onClick={handleDelete} disabled={deleting} style={{
+                flex: 1, padding: "7px 0", border: "none", borderRadius: 8,
+                background: "#c0392b", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                opacity: deleting ? 0.6 : 1,
+              }}>
+                {deleting ? "…" : (language === "en" ? "Yes, delete" : "Да, удалить")}
+              </button>
+              <button type="button" onClick={() => { setConfirmDelete(false); setDeleteError(""); }} disabled={deleting} style={{
+                flex: 1, padding: "7px 0", border: "0.5px solid #e2ddd4", borderRadius: 8,
+                background: "transparent", fontSize: 13, cursor: "pointer",
+              }}>
+                {language === "en" ? "Cancel" : "Отмена"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Edit form */}
         {editMode && (
@@ -551,19 +651,14 @@ function PersonModal({ person: initialPerson, mugs, countries, language, isAdmin
   );
 }
 
-// ── BubbleCloud (zoomable / pannable) ────────────────────────────────────────
+// ── BubbleCloud ───────────────────────────────────────────────────────────────
 
 function BubbleCloud({ people, mugs, countries, language, isAdmin, onRefresh }) {
   const containerRef  = useRef(null);
-  const canvasRef     = useRef(null);
   const outerRefs     = useRef([]);
   const buttonRefs    = useRef([]);
   const nodeDataRef   = useRef([]);
   const hoveredIdxRef = useRef(-1);
-  const transformRef  = useRef({ scale: 1, tx: 0, ty: 0 });
-  const isDragging    = useRef(false);
-  const dragStart     = useRef({ x: 0, y: 0, tx: 0, ty: 0 });
-  const lastTouches   = useRef([]);
 
   const [containerW, setContainerW] = useState(0);
   const [containerH, setContainerH] = useState(0);
@@ -600,27 +695,16 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onRefresh }) 
       .sort((a, b) => b.mugsCount - a.mugsCount)
   ), [people, mugsByPerson]);
 
-  const { nodes } = useMemo(() => {
-    if (!containerW || !containerH || !enriched.length) return { nodes: [] };
-    const maxCount = enriched[0]?.mugsCount ?? 1;
-    const gap = isMobile ? GAP_MOBILE : GAP_DESKTOP;
-    const withR = enriched.map(p => ({ person: p, radius: calcRadius(p.mugsCount, maxCount, isMobile) }));
-    return fitToContainer(packBubbles(withR, gap), containerW, containerH);
+  const { nodes, decorNodes } = useMemo(() => {
+    if (!containerW || !containerH || !enriched.length) return { nodes: [], decorNodes: [] };
+    return generateRandomLayout(containerW, containerH, enriched, isMobile);
   }, [enriched, containerW, containerH, isMobile]);
 
   useEffect(() => {
     nodeDataRef.current = nodes.map(n => ({ x: n.x, y: n.y, r: n.radius }));
     outerRefs.current.length  = nodes.length;
     buttonRefs.current.length = nodes.length;
-    // Reset to identity transform when layout recomputes
-    applyTransformDirect({ scale: 1, tx: 0, ty: 0 });
   }, [nodes]);
-
-  function applyTransformDirect(z) {
-    transformRef.current = z;
-    if (canvasRef.current)
-      canvasRef.current.style.transform = `translate(${z.tx}px,${z.ty}px) scale(${z.scale})`;
-  }
 
   // ── Wave + shadow ─────────────────────────────────────────────────────────────
 
@@ -662,19 +746,16 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onRefresh }) 
   }, []);
 
   const handleHoverStart = useCallback((idx) => {
-    if (isDragging.current) return;
     hoveredIdxRef.current = idx;
     applyWave(idx);
-    // Screen-space tooltip position
-    const nd  = nodeDataRef.current[idx];
+    const nd   = nodeDataRef.current[idx];
     const node = nodes[idx];
     if (!nd || !node || !containerRef.current) return;
-    const { scale, tx, ty } = transformRef.current;
     const rect = containerRef.current.getBoundingClientRect();
     setTooltip({
       person: node.person,
-      x: rect.left + (nd.x + nd.r) * scale + tx + 10,
-      y: rect.top  +  nd.y          * scale + ty,
+      x: rect.left + nd.x + nd.r + 10,
+      y: rect.top  + nd.y,
     });
   }, [applyWave, nodes]);
 
@@ -686,73 +767,6 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onRefresh }) 
     }
   }, [applyWave]);
 
-  // ── Zoom / Pan ────────────────────────────────────────────────────────────────
-
-  function zoomAt(mx, my, factor) {
-    const { scale, tx, ty } = transformRef.current;
-    const newScale = clamp(scale * factor, 0.12, 5);
-    const ratio = newScale / scale;
-    applyTransformDirect({ scale: newScale, tx: mx - (mx - tx) * ratio, ty: my - (my - ty) * ratio });
-  }
-
-  function handleWheel(e) {
-    e.preventDefault();
-    const rect = containerRef.current.getBoundingClientRect();
-    zoomAt(e.clientX - rect.left, e.clientY - rect.top, e.deltaY < 0 ? 1.1 : 0.91);
-  }
-
-  function handleMouseDown(e) {
-    if (e.button !== 0) return;
-    isDragging.current = true;
-    dragStart.current = { x: e.clientX, y: e.clientY, tx: transformRef.current.tx, ty: transformRef.current.ty };
-    if (containerRef.current) containerRef.current.style.cursor = "grabbing";
-  }
-
-  function handleMouseMove(e) {
-    if (!isDragging.current) return;
-    applyTransformDirect({
-      ...transformRef.current,
-      tx: dragStart.current.tx + (e.clientX - dragStart.current.x),
-      ty: dragStart.current.ty + (e.clientY - dragStart.current.y),
-    });
-    if (hoveredIdxRef.current >= 0) { hoveredIdxRef.current = -1; applyWave(-1); setTooltip(null); }
-  }
-
-  function handleMouseUp() {
-    isDragging.current = false;
-    if (containerRef.current) containerRef.current.style.cursor = "grab";
-  }
-
-  function handleTouchStart(e) {
-    lastTouches.current = Array.from(e.touches);
-    if (e.touches.length === 1) {
-      isDragging.current = true;
-      const t = e.touches[0];
-      dragStart.current = { x: t.clientX, y: t.clientY, tx: transformRef.current.tx, ty: transformRef.current.ty };
-    }
-  }
-
-  function handleTouchMove(e) {
-    e.preventDefault();
-    if (e.touches.length === 2 && lastTouches.current.length >= 2) {
-      const [t1, t2] = e.touches, [lt1, lt2] = lastTouches.current;
-      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      const last = Math.hypot(lt2.clientX - lt1.clientX, lt2.clientY - lt1.clientY);
-      if (last > 0) {
-        const rect = containerRef.current.getBoundingClientRect();
-        zoomAt((t1.clientX + t2.clientX) / 2 - rect.left, (t1.clientY + t2.clientY) / 2 - rect.top, dist / last);
-      }
-    } else if (e.touches.length === 1 && isDragging.current) {
-      const t = e.touches[0];
-      applyTransformDirect({ ...transformRef.current, tx: dragStart.current.tx + t.clientX - dragStart.current.x, ty: dragStart.current.ty + t.clientY - dragStart.current.y });
-    }
-    lastTouches.current = Array.from(e.touches);
-  }
-
-  function handleTouchEnd() { isDragging.current = false; lastTouches.current = []; }
-
-  function resetZoom() { applyTransformDirect({ scale: 1, tx: 0, ty: 0 }); }
-
   const handleSelect = useCallback((p) => setSelected(p), []);
   const handleClose  = useCallback(() => setSelected(null), []);
 
@@ -760,49 +774,24 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onRefresh }) 
     <>
       <div
         ref={containerRef}
-        onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        style={{ width: "100%", height: "100%", overflow: "hidden", cursor: "grab", position: "relative", touchAction: "none" }}
+        style={{ width: "100%", height: "100%", overflow: "hidden", position: "relative" }}
       >
-        {/* Transformed canvas */}
-        <div ref={canvasRef} style={{ position: "absolute", top: 0, left: 0, transformOrigin: "0 0", willChange: "transform" }}>
-          {nodes.map((node, i) => (
-            <BubbleNode
-              key={node.person.id}
-              node={node}
-              isMobile={isMobile}
-              onSelect={handleSelect}
-              index={i}
-              outerRef={el => { outerRefs.current[i] = el; }}
-              buttonRef={el => { buttonRefs.current[i] = el; }}
-              onHoverStart={handleHoverStart}
-              onHoverEnd={handleHoverEnd}
-            />
-          ))}
-        </div>
-
-        {/* Zoom controls */}
-        <div style={{ position: "absolute", bottom: 16, right: 16, display: "flex", flexDirection: "column", gap: 6, zIndex: 30 }}>
-          {[
-            { label: "+", fn: () => zoomAt(containerW / 2, containerH / 2, 1.3) },
-            { label: "−", fn: () => zoomAt(containerW / 2, containerH / 2, 0.77) },
-            { label: "⊙", fn: resetZoom },
-          ].map(b => (
-            <button key={b.label} type="button" onClick={b.fn} style={{
-              width: 36, height: 36, border: "0.5px solid #e8e2d9", borderRadius: 8,
-              background: "rgba(255,255,255,0.92)", backdropFilter: "blur(8px)",
-              color: "#153126", fontSize: b.label === "⊙" ? 15 : 20, fontWeight: 500,
-              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-            }}>{b.label}</button>
-          ))}
-        </div>
+        {decorNodes.map((d) => (
+          <DecorBubble key={`decor-${d.index}`} x={d.x} y={d.y} radius={d.radius} index={d.index} />
+        ))}
+        {nodes.map((node, i) => (
+          <BubbleNode
+            key={node.person.id}
+            node={node}
+            isMobile={isMobile}
+            onSelect={handleSelect}
+            index={i}
+            outerRef={el => { outerRefs.current[i] = el; }}
+            buttonRef={el => { buttonRefs.current[i] = el; }}
+            onHoverStart={handleHoverStart}
+            onHoverEnd={handleHoverEnd}
+          />
+        ))}
       </div>
 
       {/* Screen-space tooltip (outside transformed canvas) */}
@@ -863,9 +852,6 @@ export default function PeoplePage({ people: peopleProp = [], mugs = [], countri
             </span>
           ))}
         </div>
-        <span style={{ fontSize: 11, color: "#b8c2bc", whiteSpace: "nowrap" }}>
-          {language === "en" ? "Scroll to zoom · drag to explore" : "Колесо — масштаб · перетащи — навигация"}
-        </span>
       </div>
 
       {/* Full-height bubble stage */}
