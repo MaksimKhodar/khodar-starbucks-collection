@@ -33,54 +33,84 @@ function getInitials(p) {
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
-// ── Hex-grid viewport layout ──────────────────────────────────────────────────
+// ── Random packing layout ─────────────────────────────────────────────────────
 
-function generateViewportLayout(containerW, containerH, enriched, isMobile) {
-  if (!containerW || !enriched.length) return { nodes: [], decorNodes: [] };
+function generateRandomLayout(containerW, containerH, enriched, isMobile) {
+  if (!containerW || !containerH || !enriched.length) return { nodes: [], decorNodes: [] };
 
   const maxCount = Math.max(1, enriched[0]?.mugsCount ?? 1);
 
   function realRadius(mugsCount) {
     const minR = isMobile ? 20 : 26;
     const maxR = isMobile ? 52 : 78;
-    // Linear norm: 1 mug stays small, many mugs visibly large
     const norm = Math.max(1, mugsCount) / maxCount;
-    return clamp(minR + norm * (maxR - minR), minR, maxR);
+    return Math.round(clamp(minR + norm * (maxR - minR), minR, maxR));
   }
 
-  const DECOR_R   = isMobile ? 15 : 20;
-  const CELL_STEP = isMobile ? 72 : 118;
-  const ROW_STEP  = CELL_STEP * 0.866; // sqrt(3)/2
-  const PAD       = isMobile ? 20 : 40;
+  const GAP     = isMobile ? 8  : 12;
+  const PAD     = isMobile ? 16 : 28;
+  const DECOR_R = isMobile ? 15 : 20;
 
-  const positions = [];
-  const rowCount = Math.ceil((containerH - PAD * 2) / ROW_STEP) + 1;
-  const colCount = Math.ceil((containerW - PAD * 2) / CELL_STEP) + 1;
+  // Stable seeded RNG (mulberry32) — same people → same layout
+  let seed = 0;
+  for (const p of enriched) {
+    for (let i = 0, s = String(p.id); i < s.length; i++)
+      seed = (Math.imul(seed ^ s.charCodeAt(i), 0x9e3779b1) >>> 0);
+  }
+  if (!seed) seed = 0xdeadbeef;
+  function rand() {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let z = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    z ^= z + Math.imul(z ^ (z >>> 7), 61 | z);
+    return ((z ^ (z >>> 14)) >>> 0) / 0x100000000;
+  }
 
-  for (let row = 0; row <= rowCount; row++) {
-    for (let col = 0; col <= colCount; col++) {
-      const x = PAD + col * CELL_STEP + (row % 2 === 1 ? CELL_STEP / 2 : 0);
-      const y = PAD + row * ROW_STEP;
-      if (x >= PAD && x <= containerW - PAD && y >= PAD && y <= containerH - PAD) {
-        positions.push({ x, y });
-      }
+  const placed = [];
+
+  function overlaps(x, y, r) {
+    for (const p of placed) {
+      const dx = x - p.x, dy = y - p.y;
+      if (dx * dx + dy * dy < (p.r + r + GAP) ** 2) return true;
+    }
+    return false;
+  }
+
+  function tryPlace(r, attempts) {
+    const xMin = PAD + r, xMax = containerW - PAD - r;
+    const yMin = PAD + r, yMax = containerH - PAD - r;
+    if (xMin > xMax || yMin > yMax) return null;
+    for (let i = 0; i < attempts; i++) {
+      const x = xMin + rand() * (xMax - xMin);
+      const y = yMin + rand() * (yMax - yMin);
+      if (!overlaps(x, y, r)) return { x, y };
+    }
+    return null;
+  }
+
+  // Place real people biggest-first (so large circles get priority)
+  const nodes = [];
+  for (const person of enriched) {
+    const r = realRadius(person.mugsCount);
+    const pos = tryPlace(r, 1200);
+    if (pos) {
+      placed.push({ x: pos.x, y: pos.y, r });
+      nodes.push({ person, x: pos.x, y: pos.y, radius: r });
     }
   }
 
-  const cX = containerW / 2, cY = containerH / 2;
-  positions.sort((a, b) => Math.hypot(a.x - cX, a.y - cY) - Math.hypot(b.x - cX, b.y - cY));
-
-  const count = Math.min(enriched.length, positions.length);
-  const nodes = enriched.slice(0, count).map((person, i) => ({
-    person,
-    x: positions[i].x,
-    y: positions[i].y,
-    radius: realRadius(person.mugsCount),
-  }));
-
-  const decorNodes = positions.slice(count).map((pos, i) => ({
-    x: pos.x, y: pos.y, radius: DECOR_R, index: i,
-  }));
+  // Fill remaining space with decorative circles until canvas is saturated
+  const decorNodes = [];
+  let fails = 0;
+  while (fails < 80 && decorNodes.length < 200) {
+    const pos = tryPlace(DECOR_R, 12);
+    if (pos) {
+      placed.push({ x: pos.x, y: pos.y, r: DECOR_R });
+      decorNodes.push({ x: pos.x, y: pos.y, radius: DECOR_R, index: decorNodes.length });
+      fails = 0;
+    } else {
+      fails++;
+    }
+  }
 
   return { nodes, decorNodes };
 }
@@ -664,7 +694,7 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onRefresh }) 
 
   const { nodes, decorNodes } = useMemo(() => {
     if (!containerW || !containerH || !enriched.length) return { nodes: [], decorNodes: [] };
-    return generateViewportLayout(containerW, containerH, enriched, isMobile);
+    return generateRandomLayout(containerW, containerH, enriched, isMobile);
   }, [enriched, containerW, containerH, isMobile]);
 
   useEffect(() => {
