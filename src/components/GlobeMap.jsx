@@ -145,16 +145,19 @@ function GlobeMap({
   isActive = true,
   className = "",
 }) {
-  const containerRef = useRef(null);
-  const globeRef = useRef(null);
+  const containerRef   = useRef(null);
+  const globeRef       = useRef(null);
   const didInitViewRef = useRef(false);
+  const hintTimerRef   = useRef(null);
 
-  // CSS pixel size — NOT multiplied by dpr
-  // Globe takes CSS pixels; sharpness comes from rendererConfig.pixelRatio
-  const [size, setSize] = useState({ width: 0, height: 0 });
+  const INIT_ALT = 1.9;
+
+  const [size, setSize]           = useState({ width: 0, height: 0 });
   const [worldGeoJson, setWorldGeoJson] = useState(worldGeoJsonCache);
-  const [geoError, setGeoError] = useState("");
+  const [geoError, setGeoError]   = useState("");
   const [showLoader, setShowLoader] = useState(!worldGeoJsonCache);
+  const [showCtrlHint, setShowCtrlHint] = useState(false);
+  const [globeZoomPct, setGlobeZoomPct] = useState(100);
 
   const countryIndexes = useMemo(() => buildCountryIndexes(countryData), [countryData]);
   const polygonsData = useMemo(() => worldGeoJson?.features ?? [], [worldGeoJson]);
@@ -198,6 +201,45 @@ function GlobeMap({
   }, []);
 
   const canRenderGlobe = size.width > 0 && size.height > 0 && polygonsData.length > 0;
+
+  // Block zoom on scroll without Ctrl — let the page scroll instead
+  useEffect(() => {
+    if (!isActive) return;
+    const el = containerRef.current;
+    if (!el) return;
+    function onWheel(e) {
+      if (!e.ctrlKey && !e.metaKey) {
+        e.stopPropagation();
+        setShowCtrlHint(true);
+        clearTimeout(hintTimerRef.current);
+        hintTimerRef.current = setTimeout(() => setShowCtrlHint(false), 2000);
+      }
+    }
+    el.addEventListener("wheel", onWheel, { capture: true, passive: true });
+    return () => {
+      el.removeEventListener("wheel", onWheel, { capture: true });
+      clearTimeout(hintTimerRef.current);
+    };
+  }, [isActive]);
+
+  // Track globe zoom percentage via rAF (cheap — just reads a number)
+  useEffect(() => {
+    if (!canRenderGlobe) return;
+    let frameId;
+    let lastPct = 100;
+    function tick() {
+      try {
+        const alt = globeRef.current?.pointOfView?.()?.altitude;
+        if (alt) {
+          const pct = Math.round((INIT_ALT / alt) * 100);
+          if (Math.abs(pct - lastPct) >= 2) { lastPct = pct; setGlobeZoomPct(pct); }
+        }
+      } catch {}
+      frameId = requestAnimationFrame(tick);
+    }
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, [canRenderGlobe]);
 
   const initView = useCallback((globe) => {
     if (!globe) return;
@@ -289,6 +331,18 @@ function GlobeMap({
     []
   );
 
+  function globeZoomIn() {
+    const alt = globeRef.current?.pointOfView?.()?.altitude;
+    if (alt) globeRef.current.pointOfView({ altitude: Math.max(0.28, alt * 0.7) }, 280);
+  }
+  function globeZoomOut() {
+    const alt = globeRef.current?.pointOfView?.()?.altitude;
+    if (alt) globeRef.current.pointOfView({ altitude: Math.min(3.8, alt * 1.43) }, 280);
+  }
+  function globeResetView() {
+    globeRef.current?.pointOfView?.({ lat: 20, lng: 15, altitude: INIT_ALT }, 400);
+  }
+
   return (
     <div
       ref={containerRef}
@@ -301,7 +355,6 @@ function GlobeMap({
         transition: "opacity 220ms ease",
         overflow: "hidden",
         background: "radial-gradient(circle at center, #f7f2ea 0%, #efe7dc 100%)",
-        
       }}
     >
       {!geoError && canRenderGlobe && (
@@ -369,10 +422,52 @@ function GlobeMap({
         </div>
       )}
 
+      {/* Zoom controls + scale */}
+      {canRenderGlobe && (
+        <div style={{
+          position: "absolute", bottom: 14, right: 14, zIndex: 10,
+          display: "flex", alignItems: "center", gap: 5,
+        }}>
+          <span style={{
+            fontSize: 11, fontWeight: 600, color: "#4a5e54",
+            background: "rgba(255,255,255,0.88)", backdropFilter: "blur(6px)",
+            padding: "4px 9px", borderRadius: 8, minWidth: 40, textAlign: "center",
+            border: "0.5px solid rgba(0,0,0,0.08)",
+          }}>{globeZoomPct}%</span>
+          {[{ label: "−", fn: globeZoomOut }, { label: "+", fn: globeZoomIn }, { label: "⊙", fn: globeResetView }].map(b => (
+            <button key={b.label} type="button" onClick={b.fn} style={{
+              width: 30, height: 30, border: "0.5px solid rgba(0,0,0,0.12)", borderRadius: 8,
+              background: "rgba(255,255,255,0.88)", backdropFilter: "blur(6px)",
+              color: "#2d4a3a", fontSize: b.label === "⊙" ? 14 : 18, fontWeight: 500,
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+            }}>{b.label}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Ctrl+scroll hint */}
+      {showCtrlHint && (
+        <div style={{
+          position: "absolute", bottom: 60, left: "50%", transform: "translateX(-50%)",
+          background: "rgba(21,49,38,0.88)", color: "#fff",
+          borderRadius: 10, padding: "8px 16px", fontSize: 12, fontWeight: 500,
+          whiteSpace: "nowrap", pointerEvents: "none", zIndex: 20,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+          animation: "hintFadeIn 0.2s ease",
+        }}>
+          Ctrl + прокрутка для масштабирования
+        </div>
+      )}
+
       <style>{`
         @keyframes globe-spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @keyframes hintFadeIn {
+          from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
       `}</style>
     </div>

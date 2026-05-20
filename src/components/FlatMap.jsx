@@ -235,6 +235,10 @@ function FlatMap({
     panY: 0,
   });
 
+  const hintTimerRef = useRef(null);
+  const [showCtrlHint, setShowCtrlHint] = useState(false);
+  const [displayZoom, setDisplayZoom] = useState(1);
+
   const [features, setFeatures] = useState([]);
   const [size, setSize] = useState({ width: 1000, height: 560 });
 
@@ -381,12 +385,8 @@ function FlatMap({
 
   const setView = useCallback(
     (nextZoom, nextPan) => {
-      viewRef.current = {
-        zoom: nextZoom,
-        panX: nextPan.x,
-        panY: nextPan.y,
-      };
-
+      viewRef.current = { zoom: nextZoom, panX: nextPan.x, panY: nextPan.y };
+      setDisplayZoom(nextZoom);
       scheduleViewportRender();
     },
     [scheduleViewportRender]
@@ -411,6 +411,13 @@ function FlatMap({
     function handleWheelNative(event) {
       const svgElement = svgRef.current;
       if (!svgElement) return;
+
+      if (!event.ctrlKey && !event.metaKey) {
+        setShowCtrlHint(true);
+        clearTimeout(hintTimerRef.current);
+        hintTimerRef.current = setTimeout(() => setShowCtrlHint(false), 2000);
+        return; // let page scroll naturally
+      }
 
       event.preventDefault();
       event.stopPropagation();
@@ -705,43 +712,45 @@ function FlatMap({
         touchAction: "none",
       }}
     >
-      <div
-        style={{
-          position: "absolute",
-          top: 12,
-          right: 12,
-          zIndex: 2,
-          display: "flex",
-          gap: 8,
-        }}
-      >
-        <button
-          type="button"
-          onClick={zoomOut}
-          className="secondary-button"
-          style={{ padding: "6px 10px" }}
-        >
-          −
-        </button>
-
-        <button
-          type="button"
-          onClick={zoomIn}
-          className="secondary-button"
-          style={{ padding: "6px 10px" }}
-        >
-          +
-        </button>
-
-        <button
-          type="button"
-          onClick={resetView}
-          className="secondary-button"
-          style={{ padding: "6px 10px" }}
-        >
-          Сброс
-        </button>
+      {/* Zoom controls + scale */}
+      <div style={{ position: "absolute", top: 12, right: 12, zIndex: 2, display: "flex", gap: 6, alignItems: "center" }}>
+        <span style={{
+          fontSize: 11, fontWeight: 600, color: "#4a5e54",
+          background: "rgba(255,255,255,0.88)", backdropFilter: "blur(6px)",
+          padding: "4px 9px", borderRadius: 8, minWidth: 40, textAlign: "center",
+          border: "0.5px solid rgba(0,0,0,0.08)",
+        }}>{Math.round(displayZoom * 100)}%</span>
+        {[
+          { label: "−", fn: zoomOut },
+          { label: "+", fn: zoomIn },
+          { label: "⊙", fn: resetView },
+        ].map(b => (
+          <button key={b.label} type="button" onClick={b.fn} className="secondary-button"
+            style={{ width: 30, height: 30, padding: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: b.label === "⊙" ? 14 : 18, fontWeight: 500 }}>
+            {b.label}
+          </button>
+        ))}
       </div>
+
+      {/* Ctrl+scroll hint */}
+      {showCtrlHint && (
+        <div style={{
+          position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)",
+          background: "rgba(21,49,38,0.88)", color: "#fff",
+          borderRadius: 10, padding: "8px 16px", fontSize: 12, fontWeight: 500,
+          whiteSpace: "nowrap", pointerEvents: "none", zIndex: 10,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+          animation: "hintFadeIn 0.2s ease",
+        }}>
+          Ctrl + прокрутка для масштабирования
+        </div>
+      )}
+      <style>{`
+        @keyframes hintFadeIn {
+          from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+      `}</style>
 
       <svg
         ref={svgRef}
