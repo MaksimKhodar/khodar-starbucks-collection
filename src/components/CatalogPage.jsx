@@ -283,11 +283,31 @@ function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, 
           }}>
             {mug.title}
           </h3>
-          {mug.received_at && (
-            <span style={{ fontSize: 10, color: "#8a9e96", flexShrink: 0, paddingTop: 2, whiteSpace: "nowrap" }}>
-              {formatDate(mug.received_at)}
-            </span>
-          )}
+          <div style={{ display: "flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
+            {mug.received_at && (
+              <span style={{ fontSize: 10, color: "#8a9e96", paddingTop: 2, whiteSpace: "nowrap" }}>
+                {formatDate(mug.received_at)}
+              </span>
+            )}
+            <button
+              type="button"
+              title="Поделиться ссылкой"
+              onClick={e => {
+                e.stopPropagation();
+                const url = `${window.location.origin}/mug/${mug.collection_number}`;
+                if (navigator.share) { navigator.share({ title: mug.title, url }); }
+                else { navigator.clipboard?.writeText(url); }
+              }}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                color: "#9ca3af", padding: "1px 2px", lineHeight: 1, fontSize: 13,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = "#1f6f54"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = "#9ca3af"; }}
+            >
+              ↗
+            </button>
+          </div>
         </div>
 
         <div style={{ fontSize: 12, color: "#5f6f66", lineHeight: 1.4 }}>
