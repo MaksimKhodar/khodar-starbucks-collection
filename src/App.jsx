@@ -168,7 +168,7 @@ function PeopleTeaser({ people = [], mugs = [], language, onClick }) {
       .slice(0, 7);
   }, [people, mugs]);
 
-  const visibleCount = people.filter(p => p.is_visible !== false && !p.is_owner).length;
+  const visibleCount = people.filter(p => p.is_visible !== false).length;
   const OVERLAP = 10; // px overlap between avatars
 
   return (
