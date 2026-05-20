@@ -153,8 +153,7 @@ function MobileStatsBar({ mugsCount, countriesWithMugsCount, countriesWithStarbu
 
 // ─── PeopleTeaser ─────────────────────────────────────────────────────────────
 
-function PeopleTeaser({ people = [], mugs = [], language, onClick }) {
-  // Pick top contributors (sorted by mug count)
+function PeopleTeaser({ people = [], mugs = [], language, isMobile = false, onClick }) {
   const topPeople = useMemo(() => {
     const counts = {};
     mugs.forEach(m => {
@@ -165,11 +164,12 @@ function PeopleTeaser({ people = [], mugs = [], language, onClick }) {
     return [...people]
       .filter(p => p.is_visible !== false && !p.is_owner)
       .sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0))
-      .slice(0, 7);
-  }, [people, mugs]);
+      .slice(0, isMobile ? 4 : 7);
+  }, [people, mugs, isMobile]);
 
   const visibleCount = people.filter(p => p.is_visible !== false).length;
-  const OVERLAP = 10; // px overlap between avatars
+  const avatarSize = isMobile ? 34 : 40;
+  const overlap    = isMobile ? 8  : 10;
 
   return (
     <button
@@ -177,11 +177,11 @@ function PeopleTeaser({ people = [], mugs = [], language, onClick }) {
       onClick={onClick}
       style={{
         display: "flex", alignItems: "center",
-        width: "100%", padding: "18px 24px",
+        width: "100%", padding: isMobile ? "12px 16px" : "18px 24px",
         background: "linear-gradient(to right, #f0faf5, #faf7f3)",
         border: "none", borderBottom: "0.5px solid #e8e2d9",
         cursor: "pointer", textAlign: "left",
-        gap: 20,
+        gap: isMobile ? 12 : 20,
       }}
       onMouseEnter={e => { e.currentTarget.style.background = "linear-gradient(to right, #e4f5ed, #f5f0e8)"; }}
       onMouseLeave={e => { e.currentTarget.style.background = "linear-gradient(to right, #f0faf5, #faf7f3)"; }}
@@ -194,12 +194,12 @@ function PeopleTeaser({ people = [], mugs = [], language, onClick }) {
             || person.instagram_url?.replace(/^.*\//, "")?.replace(/^@/, "")?.[0]?.toUpperCase() || "?";
           return (
             <div key={person.id} style={{
-              width: 40, height: 40, borderRadius: "50%",
+              width: avatarSize, height: avatarSize, borderRadius: "50%",
               border: "2.5px solid #fff",
-              marginLeft: i === 0 ? 0 : -OVERLAP,
+              marginLeft: i === 0 ? 0 : -overlap,
               background: url ? `url(${url}) center/cover` : "linear-gradient(135deg,#1f6f54,#2d9970)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              color: "#fff", fontSize: 13, fontWeight: 700,
+              color: "#fff", fontSize: isMobile ? 11 : 13, fontWeight: 700,
               flexShrink: 0, zIndex: topPeople.length - i,
               boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
             }}>
@@ -209,12 +209,11 @@ function PeopleTeaser({ people = [], mugs = [], language, onClick }) {
         })}
         {visibleCount > topPeople.length && (
           <div style={{
-            width: 40, height: 40, borderRadius: "50%",
-            border: "2.5px solid #fff",
-            marginLeft: -OVERLAP,
+            width: avatarSize, height: avatarSize, borderRadius: "50%",
+            border: "2.5px solid #fff", marginLeft: -overlap,
             background: "#e8f5ee",
             display: "flex", alignItems: "center", justifyContent: "center",
-            color: "#1f6f54", fontSize: 11, fontWeight: 700,
+            color: "#1f6f54", fontSize: 10, fontWeight: 700,
             flexShrink: 0, zIndex: 0,
           }}>
             +{visibleCount - topPeople.length}
@@ -223,25 +222,36 @@ function PeopleTeaser({ people = [], mugs = [], language, onClick }) {
       </div>
 
       {/* Text */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: "#153126", marginBottom: 2 }}>
+      <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+        <div style={{
+          fontSize: isMobile ? 13 : 14, fontWeight: 700, color: "#153126",
+          marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>
           {language === "en" ? "People Behind the Collection" : "Люди за коллекцией"}
         </div>
-        <div style={{ fontSize: 12, color: "#5f6f66" }}>
-          {language === "en"
-            ? `${visibleCount} friends from around the world helped build this collection`
-            : `${visibleCount} друзей со всего мира помогли собрать эту коллекцию`}
-        </div>
+        {!isMobile && (
+          <div style={{ fontSize: 12, color: "#5f6f66" }}>
+            {language === "en"
+              ? `${visibleCount} friends from around the world helped build this collection`
+              : `${visibleCount} друзей со всего мира помогли собрать эту коллекцию`}
+          </div>
+        )}
+        {isMobile && (
+          <div style={{ fontSize: 11, color: "#5f6f66" }}>
+            {visibleCount} {language === "en" ? "contributors" : "участников"} →
+          </div>
+        )}
       </div>
 
-      {/* Arrow */}
-      <div style={{
-        flexShrink: 0,
-        width: 32, height: 32, borderRadius: "50%",
-        background: "#1f6f54", color: "#fff",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 16, fontWeight: 700,
-      }}>→</div>
+      {/* Arrow — desktop only */}
+      {!isMobile && (
+        <div style={{
+          flexShrink: 0, width: 32, height: 32, borderRadius: "50%",
+          background: "#1f6f54", color: "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 16, fontWeight: 700,
+        }}>→</div>
+      )}
     </button>
   );
 }
@@ -908,6 +918,7 @@ function AppContent() {
               people={people}
               mugs={mugs}
               language={language}
+              isMobile={isMobile}
               onClick={() => setCurrentView("people")}
             />
           )}
