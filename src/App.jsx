@@ -130,21 +130,23 @@ function MobileStatsBar({ mugsCount, countriesWithMugsCount, countriesWithStarbu
         <div style={{ fontSize: 26, fontWeight: 700, color: "#1f6f54", lineHeight: 1 }}>{countriesWithMugsCount}</div>
         <div style={{ fontSize: 11, color: "#5f6f66", marginTop: 3, whiteSpace: "nowrap" }}>{h.stat2label(countriesWithMugsCount, countriesWithStarbucksCount)}</div>
       </div>
-      {/* People stat — clickable on mobile */}
-      <button
-        type="button"
-        onClick={onPeopleClick}
-        style={{
-          flexShrink: 0, padding: "10px 16px", background: "#fff", borderRadius: 12,
-          border: "0.5px solid #e8e2d9", minWidth: 120, textAlign: "left", cursor: "pointer",
-        }}
-      >
-        <div style={{ fontSize: 26, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{visibleFriendsCount}</div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 3 }}>
-          <span style={{ fontSize: 11, color: "#5f6f66", whiteSpace: "nowrap" }}>{h.stat3label}</span>
-          <span style={{ fontSize: 11, color: "#1f6f54", fontWeight: 700 }}>→</span>
-        </div>
-      </button>
+      {/* People stat — only shown to admins on mobile */}
+      {onPeopleClick && (
+        <button
+          type="button"
+          onClick={onPeopleClick}
+          style={{
+            flexShrink: 0, padding: "10px 16px", background: "#fff", borderRadius: 12,
+            border: "0.5px solid #e8e2d9", minWidth: 120, textAlign: "left", cursor: "pointer",
+          }}
+        >
+          <div style={{ fontSize: 26, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{visibleFriendsCount}</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 3 }}>
+            <span style={{ fontSize: 11, color: "#5f6f66", whiteSpace: "nowrap" }}>{h.stat3label}</span>
+            <span style={{ fontSize: 11, color: "#1f6f54", fontWeight: 700 }}>→</span>
+          </div>
+        </button>
+      )}
     </div>
   );
 }
@@ -244,6 +246,73 @@ function PeopleTeaser({ people = [], mugs = [], language, onClick }) {
   );
 }
 
+// ─── MobileDesktopBanner ─────────────────────────────────────────────────────
+
+function MobileDesktopBanner({ language, onClose }) {
+  const ru = language !== "en";
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 1000,
+      background: "rgba(10,22,14,0.52)",
+      display: "flex", alignItems: "flex-end",
+    }}>
+      <div style={{
+        width: "100%",
+        background: "#fffaf4",
+        borderRadius: "22px 22px 0 0",
+        padding: "28px 24px 44px",
+        boxShadow: "0 -12px 48px rgba(0,0,0,0.18)",
+        animation: "slideUpSheet 0.32s cubic-bezier(0.32,0.72,0,1)",
+      }}>
+        {/* Icon + heading */}
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{ fontSize: 36, marginBottom: 10 }}>🖥️</div>
+          <h2 style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 700, color: "#153126" }}>
+            {ru ? "Мобильная версия" : "Mobile version"}
+          </h2>
+          <p style={{ margin: 0, fontSize: 13, color: "#5f6f66", lineHeight: 1.65 }}>
+            {ru
+              ? "На мобильном доступен каталог и фильтры кружек. Полная версия доступна с компьютера или в режиме «Полный сайт» в браузере."
+              : "On mobile you can browse the catalog and use filters. The full experience is available on desktop or via \"Desktop site\" in your browser."}
+          </p>
+        </div>
+
+        {/* Feature list */}
+        <div style={{ background: "#f5f0e8", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#1f6f54", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
+            {ru ? "На полной версии доступно" : "Full version includes"}
+          </div>
+          {[
+            { icon: "🗺️", text: ru ? "Интерактивная карта мира" : "Interactive world map" },
+            { icon: "📊", text: ru ? "Статистика и аналитика" : "Statistics & analytics" },
+            { icon: "👥", text: ru ? "Интерактивная доска участников коллекции" : "Interactive contributors board" },
+          ].map((item, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: i < 2 ? 8 : 0 }}>
+              <span style={{ fontSize: 18, lineHeight: 1 }}>{item.icon}</span>
+              <span style={{ fontSize: 13, color: "#374151" }}>{item.text}</span>
+            </div>
+          ))}
+        </div>
+
+        <button type="button" onClick={onClose} style={{
+          width: "100%", padding: "14px", border: "none", borderRadius: 14,
+          background: "#1f6f54", color: "#fff",
+          fontSize: 15, fontWeight: 600, cursor: "pointer",
+        }}>
+          {ru ? "Понятно, к каталогу →" : "Got it, show catalog →"}
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes slideUpSheet {
+          from { transform: translateY(100%); }
+          to   { transform: translateY(0); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 // ─── AppContent ───────────────────────────────────────────────────────────────
 
 function AppContent() {
@@ -273,6 +342,7 @@ function AppContent() {
   const [fatalError, setFatalError] = useState("");
   const [warningMessage, setWarningMessage] = useState("");
   const [currentView, setCurrentView] = useState("home");
+  const [mobileBannerDismissed, setMobileBannerDismissed] = useState(false);
 
   const [mapPanelCountryIso, setMapPanelCountryIso] = useState("");
 
@@ -305,8 +375,9 @@ function AppContent() {
     setMugs(prev => prev.filter(m => m.id !== mugId));
   }, []);
 
-  const loadData = useCallback(async () => {
-    setLoading(true); setFatalError(""); setWarningMessage("");
+  // applyData — shared setter used by both loadData and refreshData
+  const applyData = useCallback(async (showLoading) => {
+    if (showLoading) { setLoading(true); setFatalError(""); setWarningMessage(""); }
     const [countriesRes, mugsRes, peopleRes, citiesRes, statesRes] = await Promise.all([
       tryLoadTable(
         () => supabase.from("countries").select("id, iso2_code, name_en, name_ru, has_starbucks_current, is_visible").eq("is_visible", true).order("name_en", { ascending: true }),
@@ -317,8 +388,8 @@ function AppContent() {
         () => supabase.from("mugs").select(`id, collection_number, country_id, state_id, city_id, slug, title, city, city_key, mug_type, received_at, brought_by, brought_by_person_ids, brought_by_person_id, color_keys, collection_keys, note, cover_image_path, is_published, created_at, updated_at, mug_images (id, mug_id, storage_path, sort_order, alt_text, created_at)`).eq("is_published", true).order("received_at", { ascending: false })
       ),
       tryLoadTable(
-        () => supabase.from("people").select("id, first_name, last_name, bio, avatar_image_path, instagram_url, is_visible").eq("is_visible", true).order("first_name", { ascending: true }),
-        () => supabase.from("people").select("id, first_name, last_name, bio, avatar_image_path, instagram_url").order("first_name", { ascending: true })
+        () => supabase.from("people").select("id, first_name, last_name, bio, avatar_image_path, instagram_url, is_visible, is_owner").eq("is_visible", true).order("first_name", { ascending: true }),
+        () => supabase.from("people").select("id, first_name, last_name, bio, avatar_image_path, instagram_url, is_owner").order("first_name", { ascending: true })
       ),
       tryLoadTable(
         () => supabase.from("cities").select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude, is_active, country_iso2, state_code, state_name_en, state_name_ru").eq("is_active", true).order("name_en", { ascending: true }).limit(10000),
@@ -330,24 +401,26 @@ function AppContent() {
       ),
     ]);
 
-    if (countriesRes.error || mugsRes.error) {
+    if (showLoading && (countriesRes.error || mugsRes.error)) {
       setFatalError(countriesRes.error?.message || mugsRes.error?.message || "Не удалось загрузить данные.");
       setCountries([]); setStates([]); setMugs([]); setPeople([]); setCities([]);
       setLoading(false); return;
     }
-    setCountries(countriesRes.data ?? []);
-    setMugs(mugsRes.data ?? []);
+    if (!countriesRes.error) setCountries(countriesRes.data ?? []);
+    if (!mugsRes.error)      setMugs(mugsRes.data ?? []);
     setPeople((peopleRes.error ? [] : peopleRes.data ?? []).map(p => ({ ...p, is_visible: p.is_visible ?? true })));
-    setCities(citiesRes.error ? [] : citiesRes.data ?? []);
-    setStates(statesRes.error ? [] : statesRes.data ?? []);
+    if (!citiesRes.error)    setCities(citiesRes.data ?? []);
+    if (!statesRes.error)    setStates(statesRes.data ?? []);
     const warnings = [
       peopleRes.error ? `People: ${peopleRes.error.message}` : null,
       citiesRes.error ? `Cities: ${citiesRes.error.message}` : null,
       statesRes.error ? `States: ${statesRes.error.message}` : null,
     ].filter(Boolean);
-    setWarningMessage(warnings.join(" / "));
-    setLoading(false);
+    if (showLoading) { setWarningMessage(warnings.join(" / ")); setLoading(false); }
   }, [tryLoadTable]);
+
+  const loadData    = useCallback(() => applyData(true),  [applyData]);
+  const refreshData = useCallback(() => applyData(false), [applyData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -391,6 +464,11 @@ function AppContent() {
   useEffect(() => {
     if (!isAdminAuthenticated && ADMIN_ONLY_VIEWS.has(currentView)) setCurrentView("home");
   }, [currentView, isAdminAuthenticated]);
+
+  // Redirect mobile non-admins away from people page
+  useEffect(() => {
+    if (isMobile && !isAdminAuthenticated && currentView === "people") setCurrentView("home");
+  }, [isMobile, isAdminAuthenticated, currentView]);
 
   // ── Derived data ──────────────────────────────────────────────────────────
 
@@ -533,6 +611,7 @@ function AppContent() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   const isAdminView = ADMIN_ONLY_VIEWS.has(currentView);
+  const showMobileBanner = isMobile && !isAdminAuthenticated && !mobileBannerDismissed;
 
   if (loading) return (
     <div className="card"><div className="empty-state"><h2>{t("loadingTitle")}</h2><p>{t("loadingText")}</p></div></div>
@@ -547,6 +626,10 @@ function AppContent() {
 
   return (
     <div className="page">
+
+      {showMobileBanner && (
+        <MobileDesktopBanner language={language} onClose={() => setMobileBannerDismissed(true)} />
+      )}
 
       {/* ── Navbar ── */}
       <nav style={{
@@ -621,7 +704,7 @@ function AppContent() {
           countries={countries}
           language={language}
           isAdmin={isAdminAuthenticated}
-          onRefresh={loadData}
+          onRefresh={refreshData}
         />
 
       ) : (
@@ -736,7 +819,7 @@ function AppContent() {
                   countriesWithStarbucksCount={countriesWithStarbucksCount}
                   visibleFriendsCount={visibleFriendsCount}
                   h={h}
-                  onPeopleClick={() => setCurrentView("people")}
+                  onPeopleClick={isAdminAuthenticated ? () => setCurrentView("people") : null}
                 />
               )}
             </div>
@@ -817,13 +900,15 @@ function AppContent() {
             )}
           </section>
 
-          {/* ── People teaser ── */}
-          <PeopleTeaser
-            people={people}
-            mugs={mugs}
-            language={language}
-            onClick={() => setCurrentView("people")}
-          />
+          {/* ── People teaser — desktop only for non-admins ── */}
+          {(!isMobile || isAdminAuthenticated) && (
+            <PeopleTeaser
+              people={people}
+              mugs={mugs}
+              language={language}
+              onClick={() => setCurrentView("people")}
+            />
+          )}
 
           {/* ── Catalog ── */}
           <div id="catalog-section">

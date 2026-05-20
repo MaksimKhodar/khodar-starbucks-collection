@@ -337,6 +337,8 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onRefresh, se
 
 export default function PeoplePage({ people: peopleProp = [], mugs = [], countries = [], language = "ru", isAdmin = false, onRefresh }) {
   const visible = useMemo(() => (peopleProp ?? []).filter(p => p.is_visible !== false), [peopleProp]);
+  // Owner is excluded from the bubble cloud (they skew the size scale)
+  const bubblePeople = useMemo(() => visible.filter(p => !p.is_owner), [visible]);
   const years = getCollectionYears();
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -404,7 +406,7 @@ export default function PeoplePage({ people: peopleProp = [], mugs = [], countri
           </div>
         ) : (
           <BubbleCloud
-            people={visible} mugs={mugs} countries={countries}
+            people={bubblePeople} mugs={mugs} countries={countries}
             language={language} isAdmin={isAdmin} onRefresh={onRefresh}
             searchQuery={searchQuery}
           />
