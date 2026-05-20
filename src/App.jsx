@@ -717,7 +717,7 @@ function AppContent() {
           <section style={{
             display: "grid",
             gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 3fr)",
-            height: isMobile ? "auto" : "calc(75vh - 52px)",
+            height: isMobile ? "auto" : "calc(100vh - 52px)",
             background: "#fff",
             borderBottom: "0.5px solid #e8e2d9",
           }}>
