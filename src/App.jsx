@@ -10,7 +10,7 @@ import CatalogPage from "./components/CatalogPage";
 import PeoplePage from "./components/PeoplePage";
 
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
-import { normalizeIso2, formatDate, getCollectionYears, ruYears, ruCountries } from "./lib/utils";
+import { normalizeIso2, getCollectionYears, ruYears, ruCountries } from "./lib/utils";
 
 const ADMIN_TOKEN_STORAGE_KEY = "khodar_admin_token";
 const ADMIN_ONLY_VIEWS = new Set(["countries"]);
