@@ -389,7 +389,7 @@ function AppContent() {
       ),
       tryLoadTable(
         () => supabase.from("people").select("id, first_name, last_name, bio, avatar_image_path, instagram_url, is_visible, is_owner").eq("is_visible", true).order("first_name", { ascending: true }),
-        () => supabase.from("people").select("id, first_name, last_name, bio, avatar_image_path, instagram_url, is_owner").order("first_name", { ascending: true })
+        () => supabase.from("people").select("id, first_name, last_name, bio, avatar_image_path, instagram_url").order("first_name", { ascending: true })
       ),
       tryLoadTable(
         () => supabase.from("cities").select("id, key, country_id, state_id, name_en, name_ru, latitude, longitude, is_active, country_iso2, state_code, state_name_en, state_name_ru").eq("is_active", true).order("name_en", { ascending: true }).limit(10000),
@@ -408,7 +408,7 @@ function AppContent() {
     }
     if (!countriesRes.error) setCountries(countriesRes.data ?? []);
     if (!mugsRes.error)      setMugs(mugsRes.data ?? []);
-    setPeople((peopleRes.error ? [] : peopleRes.data ?? []).map(p => ({ ...p, is_visible: p.is_visible ?? true })));
+    setPeople((peopleRes.error ? [] : peopleRes.data ?? []).map(p => ({ ...p, is_visible: p.is_visible ?? true, is_owner: p.is_owner ?? false })));
     if (!citiesRes.error)    setCities(citiesRes.data ?? []);
     if (!statesRes.error)    setStates(statesRes.data ?? []);
     const warnings = [
