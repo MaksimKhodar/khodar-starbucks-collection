@@ -231,21 +231,6 @@ export default function MugForm({
               </label>
             </div>
 
-            {form.brought_by_person_ids.length === 0 && (
-              <div style={{ gridColumn: "1 / -1" }}>
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#31443a" }}>
-                    Или введите текстом
-                  </span>
-                  <input
-                    type="text"
-                    value={form.brought_by}
-                    onChange={e => onUpdateForm("brought_by", e.target.value)}
-                    placeholder="Имя или @instagram"
-                  />
-                </label>
-              </div>
-            )}
 
             {/* ── География ── */}
             <SectionDivider title="География" />

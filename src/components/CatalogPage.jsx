@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import MugCarousel from "./MugCarousel";
 import { MugEditDrawer, MugCreateDrawer } from "./MugsAdmin";
 import ConfirmModal from "./ConfirmModal";
+import PersonModal, { getDisplayName } from "./PersonModal";
 import { supabase } from "../lib/supabase";
 import { formatDate, normalizeIso2 } from "../lib/utils";
 
@@ -193,7 +194,7 @@ function renderBroughtBy(text) {
 
 // ── MugCard ──────────────────────────────────────────────────────────────────
 
-function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, colorTokens, getCollectionLabel, getColorLabel, isAdmin, onEdit, onDelete }) {
+function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, colorTokens, getCollectionLabel, getColorLabel, isAdmin, onEdit, onDelete, peopleById, onPersonClick }) {
   const [noteExpanded, setNoteExpanded] = useState(false);
   const note = mug.note || "";
   const noteShort = note.length > NOTE_CLAMP ? note.slice(0, NOTE_CLAMP).trimEnd() + "…" : note;
@@ -293,11 +294,42 @@ function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, 
           {[countryName, stateName, cityText !== "—" ? cityText : null].filter(Boolean).join(" · ")}
         </div>
 
-        {mug.brought_by && (
-          <div style={{ fontSize: 12, color: "#8a9e96" }}>
-            ✈ {renderBroughtBy(mug.brought_by)}
-          </div>
-        )}
+        {/* Darители — теги с именами или fallback текст */}
+        {(() => {
+          const ids = Array.isArray(mug.brought_by_person_ids) ? mug.brought_by_person_ids.filter(Boolean)
+            : mug.brought_by_person_id ? [mug.brought_by_person_id] : [];
+          const persons = ids.map(id => peopleById?.get(String(id))).filter(Boolean);
+          if (persons.length > 0) {
+            return (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "center" }}>
+                <span style={{ fontSize: 11, color: "#8a9e96" }}>✈</span>
+                {persons.map(p => (
+                  <button key={p.id} type="button" onClick={() => onPersonClick?.(p)}
+                    style={{
+                      padding: "2px 9px", borderRadius: 999,
+                      background: "#e8f5ee", border: "1px solid #c8e8d8",
+                      color: "#1a6340", fontSize: 11, fontWeight: 600,
+                      cursor: "pointer", lineHeight: 1.5,
+                      transition: "background 0.15s",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "#d0eedd"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "#e8f5ee"; }}
+                  >
+                    {getDisplayName(p)}
+                  </button>
+                ))}
+              </div>
+            );
+          }
+          if (mug.brought_by) {
+            return (
+              <div style={{ fontSize: 12, color: "#8a9e96" }}>
+                ✈ {renderBroughtBy(mug.brought_by)}
+              </div>
+            );
+          }
+          return null;
+        })()}
 
         {colorTokens.length > 0 && (
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
@@ -514,8 +546,22 @@ function CatalogPage({
     return () => window.removeEventListener("resize", handler);
   }, []);
 
+  const [selectedPerson, setSelectedPerson] = useState(null);
+
   const countriesById = useMemo(() => { const m = new Map(); countries.forEach(c => m.set(String(c.id), c)); return m; }, [countries]);
   const countriesByIso = useMemo(() => { const m = new Map(); countries.forEach(c => { const iso = normalizeIso2(c.iso2_code); if (iso) m.set(iso, c); }); return m; }, [countries]);
+
+  const peopleById = useMemo(() => {
+    const mugCounts = {};
+    mugs.forEach(m => {
+      const ids = Array.isArray(m.brought_by_person_ids) ? m.brought_by_person_ids
+        : m.brought_by_person_id ? [m.brought_by_person_id] : [];
+      ids.forEach(id => { if (id) mugCounts[id] = (mugCounts[id] || 0) + 1; });
+    });
+    const map = new Map();
+    people.forEach(p => map.set(String(p.id), { ...p, mugsCount: mugCounts[p.id] || 0 }));
+    return map;
+  }, [people, mugs]);
   const statesById = useMemo(() => { const m = new Map(); states.forEach(s => m.set(String(s.id), s)); return m; }, [states]);
   const statesByCode = useMemo(() => { const m = new Map(); states.forEach(s => { const cid = String(s.country_id || ""); const code = normalizeText(s.code || ""); if (cid && code) m.set(`${cid}:${code}`, s); }); return m; }, [states]);
   const citiesById = useMemo(() => { const m = new Map(); cities.forEach(c => m.set(String(c.id), c)); return m; }, [cities]);
@@ -917,6 +963,8 @@ function CatalogPage({
                   isAdmin={isAdmin}
                   onEdit={setEditingMug}
                   onDelete={setDeletingMug}
+                  peopleById={peopleById}
+                  onPersonClick={setSelectedPerson}
                 />
               );
             })}
@@ -1106,6 +1154,18 @@ function CatalogPage({
         onConfirm={handleDeleteConfirm}
         onCancel={() => { if (!isDeleting) setDeletingMug(null); }}
       />
+
+      {selectedPerson && (
+        <PersonModal
+          person={selectedPerson}
+          mugs={mugs}
+          countries={countries}
+          language={language}
+          isAdmin={isAdmin}
+          onClose={() => setSelectedPerson(null)}
+          onRefresh={() => {}}
+        />
+      )}
     </>
   );
 }
