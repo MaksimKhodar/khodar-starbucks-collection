@@ -168,7 +168,7 @@ function PeopleTeaser({ people = [], mugs = [], language, onClick }) {
       .slice(0, 7);
   }, [people, mugs]);
 
-  const visibleCount = people.filter(p => p.is_visible !== false && !p.is_owner).length;
+  const visibleCount = people.filter(p => p.is_visible !== false).length;
   const OVERLAP = 10; // px overlap between avatars
 
   return (
@@ -717,6 +717,7 @@ function AppContent() {
           <section style={{
             display: "grid",
             gridTemplateColumns: isMobile ? "minmax(0, 1fr)" : "minmax(0, 1fr) minmax(0, 3fr)",
+            height: isMobile ? "auto" : "calc(100vh - 52px)",
             background: "#fff",
             borderBottom: "0.5px solid #e8e2d9",
           }}>
@@ -726,6 +727,7 @@ function AppContent() {
               display: "flex", flexDirection: "column", minWidth: 0,
               borderRight: isMobile ? "none" : "0.5px solid #e8e2d9",
               borderBottom: isMobile ? "0.5px solid #e8e2d9" : "none",
+              overflowY: isMobile ? "visible" : "auto",
             }}>
 
               {/* Padded text + stats (desktop) + admin pills */}
@@ -826,7 +828,7 @@ function AppContent() {
 
             {/* Right: legend + globe — desktop only */}
             {!isMobile && (
-              <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+              <div style={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%" }}>
 
                 {/* Legend bar */}
                 <div style={{
@@ -851,7 +853,7 @@ function AppContent() {
                 </div>
 
                 {/* Globe */}
-                <div style={{ position: "relative", flex: 1, minHeight: 380, overflow: "hidden" }}>
+                <div style={{ position: "relative", flex: 1, minHeight: 0, overflow: "hidden" }}>
                   <div style={{ position: "absolute", inset: 0 }}>
                     <GlobeMapAsync
                       countryData={globeCountryData}
