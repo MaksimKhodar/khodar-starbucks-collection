@@ -20,7 +20,7 @@ import {
   replaceMugImage,
   reorderMugImages,
   mugImagePublicUrl,
-} from "../lib/mugImages";
+} from "../lib/storage";
 import ImageCropperModal from "./ImageCropperModal";
 
 function formatFileSize(bytes = 0) {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { formatDateTime, normalizeIso2 } from "../lib/utils";
-import { uploadImagesForMug } from "../lib/mugImages";
+import { normalizeIso2 } from "../lib/utils";
+import { uploadImagesForMug } from "../lib/storage";
 import MugForm from "./MugForm";
 import MugTable from "./MugTable";
 import {
