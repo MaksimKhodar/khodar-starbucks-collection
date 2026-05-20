@@ -163,12 +163,12 @@ function PeopleTeaser({ people = [], mugs = [], language, onClick }) {
       ids.forEach(id => { if (id) counts[id] = (counts[id] || 0) + 1; });
     });
     return [...people]
-      .filter(p => p.is_visible !== false)
+      .filter(p => p.is_visible !== false && !p.is_owner)
       .sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0))
       .slice(0, 7);
   }, [people, mugs]);
 
-  const visibleCount = people.filter(p => p.is_visible !== false).length;
+  const visibleCount = people.filter(p => p.is_visible !== false && !p.is_owner).length;
   const OVERLAP = 10; // px overlap between avatars
 
   return (
