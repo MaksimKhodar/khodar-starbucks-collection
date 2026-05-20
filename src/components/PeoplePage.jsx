@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getCollectionYears } from "../lib/utils";
+import { getCollectionYears, personSlug } from "../lib/utils";
 import PersonModal, { AvatarCircle, getDisplayName, parseHandle } from "./PersonModal";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -282,8 +282,14 @@ function BubbleCloud({ people, mugs, countries, language, isAdmin, onRefresh, se
     }
   }, [applyWave]);
 
-  const handleSelect = useCallback((p) => setSelected(p), []);
-  const handleClose  = useCallback(() => setSelected(null), []);
+  const handleSelect = useCallback((p) => {
+    window.history.pushState({}, "", `/people/${personSlug(p)}`);
+    setSelected(p);
+  }, []);
+  const handleClose = useCallback(() => {
+    window.history.pushState({}, "", "/");
+    setSelected(null);
+  }, []);
 
   return (
     <>

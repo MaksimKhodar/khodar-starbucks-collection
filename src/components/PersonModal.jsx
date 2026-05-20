@@ -215,6 +215,7 @@ export default function PersonModal({ person: initialPerson, mugs, countries, la
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting]           = useState(false);
   const [deleteError, setDeleteError]     = useState("");
+  const [copied, setCopied]               = useState(false);
   const overlayRef = useRef(null);
   const closeRef   = useRef(null);
 
@@ -355,6 +356,39 @@ export default function PersonModal({ person: initialPerson, mugs, countries, la
                     padding: "5px 11px", fontSize: 12, fontWeight: 600, color: "#9a2e2e", cursor: "pointer",
                   }}>🗑</button>
                 </>
+              )}
+              {!editMode && !confirmDelete && (
+                <button type="button"
+                  title={language === "en" ? "Copy link" : "Скопировать ссылку"}
+                  onClick={() => {
+                    const url = window.location.href;
+                    if (navigator.share) {
+                      navigator.share({ title: name, url }).catch(() => {});
+                    } else {
+                      navigator.clipboard?.writeText(url).then(() => {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      });
+                    }
+                  }}
+                  style={{
+                    background: copied ? "#e8f5ee" : "#f5f0e8",
+                    border: copied ? "0.5px solid #a8d8be" : "0.5px solid #e2ddd4",
+                    borderRadius: 8, padding: "5px 10px", fontSize: 12,
+                    fontWeight: 600, color: copied ? "#1a6340" : "#374151", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 5,
+                    transition: "background 0.2s, color 0.2s",
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 10L10 6"/>
+                    <path d="M10 4h2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2"/>
+                    <path d="M8 4H6a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h2"/>
+                  </svg>
+                  {copied
+                    ? (language === "en" ? "Copied!" : "Скопировано!")
+                    : (language === "en" ? "Share" : "Поделиться")}
+                </button>
               )}
               <button ref={closeRef} type="button" onClick={onClose}
                 aria-label={language === "en" ? "Close" : "Закрыть"}

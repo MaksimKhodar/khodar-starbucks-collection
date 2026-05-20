@@ -11,20 +11,9 @@ import PeoplePage from "./components/PeoplePage";
 import PersonModal from "./components/PersonModal";
 
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
-import { normalizeIso2, getCollectionYears, ruYears, ruCountries } from "./lib/utils";
+import { normalizeIso2, getCollectionYears, ruYears, ruCountries, personSlug } from "./lib/utils";
 
 // ─── URL routing helpers ──────────────────────────────────────────────────────
-
-const TRANSLIT = {а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"yo",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"kh",ц:"ts",ч:"ch",ш:"sh",щ:"shch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya"};
-function toSlug(str) {
-  return String(str || "").toLowerCase()
-    .split("").map(c => TRANSLIT[c] ?? c).join("")
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-export function personSlug(p) {
-  const name = [p.first_name, p.last_name].filter(Boolean).join("-");
-  return toSlug(name) || String(p.id);
-}
 
 function pushUrl(path) { window.history.pushState({}, "", path); }
 
@@ -879,10 +868,40 @@ function AppContent() {
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
           {!isMobile && (
             <button type="button" onClick={() => setShowQR(true)} title="QR-код сайта"
-              style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 18, lineHeight: 1, padding: "4px 2px" }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", lineHeight: 1, padding: "4px 2px", display: "flex", alignItems: "center" }}
               onMouseEnter={e => { e.currentTarget.style.color = "#1f6f54"; }}
               onMouseLeave={e => { e.currentTarget.style.color = "#9ca3af"; }}
-            >⬛</button>
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                {/* Top-left finder */}
+                <rect x="0" y="0" width="8" height="1.2"/>
+                <rect x="0" y="6.8" width="8" height="1.2"/>
+                <rect x="0" y="0" width="1.2" height="8"/>
+                <rect x="6.8" y="0" width="1.2" height="8"/>
+                <rect x="2.5" y="2.5" width="3" height="3"/>
+                {/* Top-right finder */}
+                <rect x="12" y="0" width="8" height="1.2"/>
+                <rect x="12" y="6.8" width="8" height="1.2"/>
+                <rect x="12" y="0" width="1.2" height="8"/>
+                <rect x="18.8" y="0" width="1.2" height="8"/>
+                <rect x="14.5" y="2.5" width="3" height="3"/>
+                {/* Bottom-left finder */}
+                <rect x="0" y="12" width="8" height="1.2"/>
+                <rect x="0" y="18.8" width="8" height="1.2"/>
+                <rect x="0" y="12" width="1.2" height="8"/>
+                <rect x="6.8" y="12" width="1.2" height="8"/>
+                <rect x="2.5" y="14.5" width="3" height="3"/>
+                {/* Data modules */}
+                <rect x="10" y="10" width="2" height="2"/>
+                <rect x="13" y="10" width="2" height="2"/>
+                <rect x="16" y="10" width="2" height="2"/>
+                <rect x="10" y="13" width="2" height="2"/>
+                <rect x="16" y="13" width="2" height="2"/>
+                <rect x="10" y="16" width="2" height="2"/>
+                <rect x="13" y="16" width="2" height="2"/>
+                <rect x="16" y="16" width="2" height="2"/>
+              </svg>
+            </button>
           )}
           <LanguageSwitch />
           {isAdminAuthenticated ? (

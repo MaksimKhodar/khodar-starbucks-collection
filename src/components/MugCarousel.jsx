@@ -59,7 +59,7 @@ function Lightbox({ images, startIndex, onClose }) {
 
       {/* Main image */}
       <img
-        src={getMugImageUrl(img.storage_path, { width: 800, quality: 80 })}
+        src={getMugImageUrl(img.storage_path)}
         alt={img.alt_text || ""}
         onClick={e => e.stopPropagation()}
         style={{
@@ -128,7 +128,7 @@ function Lightbox({ images, startIndex, onClose }) {
             >
               <img
                 loading="lazy"
-                src={getMugImageUrl(thumb.storage_path, { width: 120, quality: 70 })}
+                src={getMugImageUrl(thumb.storage_path)}
                 alt=""
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
