@@ -8,13 +8,41 @@ import MugCarousel from "./components/MugCarousel";
 import GlobeMapAsync from "./components/GlobeMapAsync";
 import CatalogPage from "./components/CatalogPage";
 import PeoplePage from "./components/PeoplePage";
+import PersonModal from "./components/PersonModal";
 
 import { LanguageProvider, useLanguage } from "./context/LanguageContext";
-import { normalizeIso2, getCollectionYears, ruYears, ruCountries } from "./lib/utils";
+import { normalizeIso2, getCollectionYears, ruYears, ruCountries, personSlug } from "./lib/utils";
+
+// ─── URL routing helpers ──────────────────────────────────────────────────────
+
+function pushUrl(path) { window.history.pushState({}, "", path); }
 
 const ADMIN_TOKEN_STORAGE_KEY = "khodar_admin_token";
 const ADMIN_ONLY_VIEWS = new Set(["countries"]);
 const MOBILE_BREAKPOINT = 768;
+
+// ─── Data cache (localStorage, 30 min TTL) ────────────────────────────────────
+
+const CACHE_KEY = "sb_main_v1";
+const CACHE_TTL = 30 * 60 * 1000;
+
+function readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { data, ts } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) { localStorage.removeItem(CACHE_KEY); return null; }
+    return data;
+  } catch { return null; }
+}
+
+function writeCache(data) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ data, ts: Date.now() })); } catch {}
+}
+
+function clearCache() {
+  try { localStorage.removeItem(CACHE_KEY); } catch {}
+}
 
 // ─── Hero text ────────────────────────────────────────────────────────────────
 
@@ -256,6 +284,29 @@ function PeopleTeaser({ people = [], mugs = [], language, isMobile = false, onCl
   );
 }
 
+// ─── QR Modal ────────────────────────────────────────────────────────────────
+
+function QRModal({ onClose }) {
+  const url = "https://khodar-starbucks-collection.vercel.app";
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(url)}&color=153126&bgcolor=fffaf4`;
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(15,30,20,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "#fffaf4", borderRadius: 20, padding: "28px 32px 24px", textAlign: "center", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: "#153126", marginBottom: 4 }}>Khodar Starbucks Collection</div>
+        <div style={{ fontSize: 12, color: "#8a9e96", marginBottom: 16 }}>{url}</div>
+        <img src={qrSrc} alt="QR code" width={220} height={220} style={{ borderRadius: 12 }} />
+        <div style={{ marginTop: 14, fontSize: 12, color: "#5f6f66" }}>Отсканируй камерой телефона</div>
+        <button type="button" onClick={onClose} style={{ marginTop: 16, padding: "8px 24px", border: "none", borderRadius: 10, background: "#1f6f54", color: "#fff", fontWeight: 600, cursor: "pointer" }}>Закрыть</button>
+      </div>
+    </div>
+  );
+}
+
 // ─── MobileDesktopBanner ─────────────────────────────────────────────────────
 
 function MobileDesktopBanner({ language, onClose }) {
@@ -323,6 +374,78 @@ function MobileDesktopBanner({ language, onClose }) {
   );
 }
 
+// ─── MugDeepLinkModal ────────────────────────────────────────────────────────
+
+function MugDeepLinkModal({ mug, countryName, language, onClose }) {
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+  }, [onClose]);
+
+  const images = mug.mug_images || [];
+  const [idx, setIdx] = useState(0);
+  const img = images[idx];
+  const imgUrl = img ? getMugImageUrl(img.storage_path) : null;
+
+  return (
+    <div onClick={onClose} style={{
+      position: "fixed", inset: 0, zIndex: 600,
+      background: "rgba(15,30,20,0.55)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 20, animation: "modalBgIn 0.2s ease",
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: "#fffaf4", borderRadius: 20,
+        width: "100%", maxWidth: 480,
+        boxShadow: "0 24px 64px rgba(0,0,0,0.25)",
+        animation: "modalIn 0.22s ease", overflow: "hidden",
+      }}>
+        {/* Image */}
+        <div style={{ position: "relative", aspectRatio: "1/1", background: "#f5f0e8" }}>
+          {imgUrl
+            ? <img src={imgUrl} alt={mug.title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#ccc", fontSize: 48 }}>☕</div>
+          }
+          {images.length > 1 && (
+            <>
+              <button type="button" onClick={() => setIdx(i => Math.max(0, i-1))} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.9)", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", fontSize: 18 }}>‹</button>
+              <button type="button" onClick={() => setIdx(i => Math.min(images.length-1, i+1))} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.9)", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", fontSize: 18 }}>›</button>
+              <div style={{ position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,0.5)", color: "#fff", borderRadius: 999, padding: "3px 10px", fontSize: 11 }}>
+                {idx+1}/{images.length}
+              </div>
+            </>
+          )}
+          <button type="button" onClick={onClose} style={{ position: "absolute", top: 10, right: 10, background: "rgba(255,255,255,0.9)", border: "none", borderRadius: "50%", width: 32, height: 32, cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+        </div>
+        {/* Info */}
+        <div style={{ padding: "16px 20px 20px" }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: "#153126", marginBottom: 4 }}>{mug.title}</div>
+          <div style={{ fontSize: 12, color: "#8a9e96" }}>
+            #{mug.collection_number}{countryName ? ` · ${countryName}` : ""}
+            {mug.received_at ? ` · ${String(mug.received_at).slice(0,7)}` : ""}
+          </div>
+          {mug.note && (
+            <p style={{ margin: "10px 0 0", fontSize: 13, color: "#5f6f66", lineHeight: 1.6 }}>{mug.note}</p>
+          )}
+          {/* Share link */}
+          <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+            <input readOnly value={window.location.href} style={{ flex: 1, padding: "7px 10px", border: "1px solid #e2ddd4", borderRadius: 8, fontSize: 12, color: "#5f6f66", background: "#faf7f3" }} />
+            <button type="button" onClick={() => navigator.clipboard?.writeText(window.location.href)} style={{ padding: "7px 12px", border: "none", borderRadius: 8, background: "#1f6f54", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+              {language === "en" ? "Copy link" : "Копировать"}
+            </button>
+          </div>
+        </div>
+      </div>
+      <style>{`
+        @keyframes modalBgIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes modalIn { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+      `}</style>
+    </div>
+  );
+}
+
 // ─── AppContent ───────────────────────────────────────────────────────────────
 
 function AppContent() {
@@ -353,6 +476,11 @@ function AppContent() {
   const [warningMessage, setWarningMessage] = useState("");
   const [currentView, setCurrentView] = useState("home");
   const [mobileBannerDismissed, setMobileBannerDismissed] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+
+  // Deep-link modal state
+  const [deepLinkMugId, setDeepLinkMugId]       = useState(null);
+  const [deepLinkPersonId, setDeepLinkPersonId] = useState(null);
 
   const [mapPanelCountryIso, setMapPanelCountryIso] = useState("");
 
@@ -385,9 +513,25 @@ function AppContent() {
     setMugs(prev => prev.filter(m => m.id !== mugId));
   }, []);
 
+  function applyToState({ countries, mugs, people, cities, states }) {
+    setCountries(countries ?? []);
+    setMugs(mugs ?? []);
+    setPeople((people ?? []).map(p => ({ ...p, is_visible: p.is_visible ?? true, is_owner: p.is_owner ?? false })));
+    setCities(cities ?? []);
+    setStates(states ?? []);
+  }
+
   // applyData — shared setter used by both loadData and refreshData
   const applyData = useCallback(async (showLoading) => {
-    if (showLoading) { setLoading(true); setFatalError(""); setWarningMessage(""); }
+    if (showLoading) {
+      const cached = readCache();
+      if (cached) {
+        applyToState(cached);
+        setLoading(false);
+        return;
+      }
+      setLoading(true); setFatalError(""); setWarningMessage("");
+    }
     const [countriesRes, mugsRes, peopleRes, citiesRes, statesRes] = await Promise.all([
       tryLoadTable(
         () => supabase.from("countries").select("id, iso2_code, name_en, name_ru, has_starbucks_current, is_visible").eq("is_visible", true).order("name_en", { ascending: true }),
@@ -416,11 +560,21 @@ function AppContent() {
       setCountries([]); setStates([]); setMugs([]); setPeople([]); setCities([]);
       setLoading(false); return;
     }
-    if (!countriesRes.error) setCountries(countriesRes.data ?? []);
-    if (!mugsRes.error)      setMugs(mugsRes.data ?? []);
-    setPeople((peopleRes.error ? [] : peopleRes.data ?? []).map(p => ({ ...p, is_visible: p.is_visible ?? true, is_owner: p.is_owner ?? false })));
-    if (!citiesRes.error)    setCities(citiesRes.data ?? []);
-    if (!statesRes.error)    setStates(statesRes.data ?? []);
+    const newCountries = !countriesRes.error ? (countriesRes.data ?? []) : null;
+    const newMugs      = !mugsRes.error      ? (mugsRes.data ?? [])      : null;
+    const newPeople    = !peopleRes.error     ? (peopleRes.data ?? [])    : null;
+    const newCities    = !citiesRes.error     ? (citiesRes.data ?? [])    : null;
+    const newStates    = !statesRes.error     ? (statesRes.data ?? [])    : null;
+
+    applyToState({
+      countries: newCountries, mugs: newMugs, people: newPeople,
+      cities: newCities, states: newStates,
+    });
+
+    if (newCountries && newMugs && newPeople && newCities && newStates) {
+      writeCache({ countries: newCountries, mugs: newMugs, people: newPeople, cities: newCities, states: newStates });
+    }
+
     const warnings = [
       peopleRes.error ? `People: ${peopleRes.error.message}` : null,
       citiesRes.error ? `Cities: ${citiesRes.error.message}` : null,
@@ -430,7 +584,7 @@ function AppContent() {
   }, [tryLoadTable]);
 
   const loadData    = useCallback(() => applyData(true),  [applyData]);
-  const refreshData = useCallback(() => applyData(false), [applyData]);
+  const refreshData = useCallback(() => { clearCache(); return applyData(false); }, [applyData]);
 
   useEffect(() => {
     let cancelled = false;
@@ -441,6 +595,24 @@ function AppContent() {
     run();
     return () => { cancelled = true; };
   }, [loadData]);
+
+  // ── Deep-link URL parsing (runs once after data is loaded) ───────────────────
+
+  useEffect(() => {
+    if (loading) return;
+    const path = window.location.pathname;
+    const mugMatch    = path.match(/^\/mug\/(\d+)$/);
+    const personMatch = path.match(/^\/people\/(.+)$/);
+    if (mugMatch) {
+      const num = Number(mugMatch[1]);
+      const mug = mugs.find(m => Number(m.collection_number) === num);
+      if (mug) setDeepLinkMugId(mug.id);
+    } else if (personMatch) {
+      const slug = personMatch[1];
+      const person = people.find(p => personSlug(p) === slug);
+      if (person) setDeepLinkPersonId(person.id);
+    }
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Admin session ─────────────────────────────────────────────────────────
 
@@ -641,6 +813,40 @@ function AppContent() {
         <MobileDesktopBanner language={language} onClose={() => setMobileBannerDismissed(true)} />
       )}
 
+      {/* ── Deep-link modals (opened via /mug/:id or /people/:slug) ── */}
+      {deepLinkMugId && (() => {
+        const mug = mugs.find(m => m.id === deepLinkMugId);
+        if (!mug) return null;
+        const country = countriesById.get(String(mug.country_id || ""));
+        return (
+          <MugDeepLinkModal
+            mug={mug}
+            countryName={country ? getCountryDisplayName(country) : null}
+            language={language}
+            onClose={() => { setDeepLinkMugId(null); pushUrl("/"); }}
+          />
+        );
+      })()}
+      {deepLinkPersonId && (() => {
+        const person = people.find(p => p.id === deepLinkPersonId);
+        if (!person) return null;
+        const mugCount = mugs.filter(m => {
+          const ids = Array.isArray(m.brought_by_person_ids) ? m.brought_by_person_ids : m.brought_by_person_id ? [m.brought_by_person_id] : [];
+          return ids.includes(person.id);
+        }).length;
+        return (
+          <PersonModal
+            person={{ ...person, mugsCount: mugCount }}
+            mugs={mugs}
+            countries={countries}
+            language={language}
+            isAdmin={isAdminAuthenticated}
+            onClose={() => { setDeepLinkPersonId(null); pushUrl("/"); }}
+            onRefresh={refreshData}
+          />
+        );
+      })()}
+
       {/* ── Navbar ── */}
       <nav style={{
         position: "sticky", top: 0, zIndex: 100,
@@ -660,6 +866,43 @@ function AppContent() {
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
+          {!isMobile && (
+            <button type="button" onClick={() => setShowQR(true)} title="QR-код сайта"
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", lineHeight: 1, padding: "4px 2px", display: "flex", alignItems: "center" }}
+              onMouseEnter={e => { e.currentTarget.style.color = "#1f6f54"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = "#9ca3af"; }}
+            >
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                {/* Top-left finder */}
+                <rect x="0" y="0" width="8" height="1.2"/>
+                <rect x="0" y="6.8" width="8" height="1.2"/>
+                <rect x="0" y="0" width="1.2" height="8"/>
+                <rect x="6.8" y="0" width="1.2" height="8"/>
+                <rect x="2.5" y="2.5" width="3" height="3"/>
+                {/* Top-right finder */}
+                <rect x="12" y="0" width="8" height="1.2"/>
+                <rect x="12" y="6.8" width="8" height="1.2"/>
+                <rect x="12" y="0" width="1.2" height="8"/>
+                <rect x="18.8" y="0" width="1.2" height="8"/>
+                <rect x="14.5" y="2.5" width="3" height="3"/>
+                {/* Bottom-left finder */}
+                <rect x="0" y="12" width="8" height="1.2"/>
+                <rect x="0" y="18.8" width="8" height="1.2"/>
+                <rect x="0" y="12" width="1.2" height="8"/>
+                <rect x="6.8" y="12" width="1.2" height="8"/>
+                <rect x="2.5" y="14.5" width="3" height="3"/>
+                {/* Data modules */}
+                <rect x="10" y="10" width="2" height="2"/>
+                <rect x="13" y="10" width="2" height="2"/>
+                <rect x="16" y="10" width="2" height="2"/>
+                <rect x="10" y="13" width="2" height="2"/>
+                <rect x="16" y="13" width="2" height="2"/>
+                <rect x="10" y="16" width="2" height="2"/>
+                <rect x="13" y="16" width="2" height="2"/>
+                <rect x="16" y="16" width="2" height="2"/>
+              </svg>
+            </button>
+          )}
           <LanguageSwitch />
           {isAdminAuthenticated ? (
             <>
@@ -682,6 +925,8 @@ function AppContent() {
           )}
         </div>
       </nav>
+
+      {showQR && <QRModal onClose={() => setShowQR(false)} />}
 
       <AdminLoginModal isOpen={isLoginOpen} language={language} loading={adminAuthLoading} error={adminAuthError}
         onClose={() => { if (!adminAuthLoading) { setAdminAuthError(""); setIsLoginOpen(false); } }}

@@ -4,7 +4,7 @@ import { MugEditDrawer, MugCreateDrawer } from "./MugsAdmin";
 import ConfirmModal from "./ConfirmModal";
 import PersonModal, { getDisplayName } from "./PersonModal";
 import { supabase } from "../lib/supabase";
-import { formatDate, normalizeIso2 } from "../lib/utils";
+import { formatDate, normalizeIso2, personSlug } from "../lib/utils";
 
 const EMPTY_VALUE = "";
 const NOTE_CLAMP = 120;
@@ -16,7 +16,7 @@ const LABELS = {
     subtitle: "Проверь коллекцию перед покупкой или подарком",
     searchPlaceholder: "Поиск по названию, городу, заметке, типу...",
     country: "Страна", state: "Штат / регион", city: "Город",
-    collection: "Коллекция", color: "Цвет", sort: "Сортировка",
+    collection: "Коллекция", color: "Цвет", person: "Человек", sort: "Сортировка",
     allCountries: "Все страны", allStates: "Все штаты", allCities: "Все города",
     allCollections: "Все коллекции", allColors: "Все цвета",
     newest: "Сначала новые", oldest: "Сначала старые", titleAsc: "Название А–Я", numberDesc: "По номеру ↓", numberAsc: "По номеру ↑",
@@ -33,7 +33,7 @@ const LABELS = {
     subtitle: "Check the collection before buying or gifting",
     searchPlaceholder: "Search by title, city, note, type...",
     country: "Country", state: "State / region", city: "City",
-    collection: "Collection", color: "Color", sort: "Sort",
+    collection: "Collection", color: "Color", person: "Person", sort: "Sort",
     allCountries: "All countries", allStates: "All states", allCities: "All cities",
     allCollections: "All collections", allColors: "All colors",
     newest: "Newest first", oldest: "Oldest first", titleAsc: "Title A–Z", numberDesc: "By number ↓", numberAsc: "By number ↑",
@@ -283,11 +283,31 @@ function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, 
           }}>
             {mug.title}
           </h3>
-          {mug.received_at && (
-            <span style={{ fontSize: 10, color: "#8a9e96", flexShrink: 0, paddingTop: 2, whiteSpace: "nowrap" }}>
-              {formatDate(mug.received_at)}
-            </span>
-          )}
+          <div style={{ display: "flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
+            {mug.received_at && (
+              <span style={{ fontSize: 10, color: "#8a9e96", paddingTop: 2, whiteSpace: "nowrap" }}>
+                {formatDate(mug.received_at)}
+              </span>
+            )}
+            <button
+              type="button"
+              title="Поделиться ссылкой"
+              onClick={e => {
+                e.stopPropagation();
+                const url = `${window.location.origin}/mug/${mug.collection_number}`;
+                if (navigator.share) { navigator.share({ title: mug.title, url }); }
+                else { navigator.clipboard?.writeText(url); }
+              }}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                color: "#9ca3af", padding: "1px 2px", lineHeight: 1, fontSize: 13,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = "#1f6f54"; }}
+              onMouseLeave={e => { e.currentTarget.style.color = "#9ca3af"; }}
+            >
+              ↗
+            </button>
+          </div>
         </div>
 
         <div style={{ fontSize: 12, color: "#5f6f66", lineHeight: 1.4 }}>
@@ -374,11 +394,16 @@ function MugCard({ mug, ui, countryName, stateName, cityText, collectionTokens, 
 
 // ── Sidebar filter section ────────────────────────────────────────────────────
 
-function FilterSection({ title, options, selected, onSelect, withSwatches = false }) {
+function FilterSection({ title, options, selected, onSelect, withSwatches = false, searchable = false }) {
   const [expanded, setExpanded] = useState(true);
+  const [query, setQuery] = useState("");
   const SHOW = 8;
   const [showAll, setShowAll] = useState(false);
-  const visible = showAll ? options : options.slice(0, SHOW);
+
+  const filtered = searchable && query
+    ? options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()))
+    : options;
+  const visible = (searchable && query) ? filtered : (showAll ? filtered : filtered.slice(0, SHOW));
 
   return (
     <div style={{ borderBottom: "0.5px solid #e8e2d9", paddingBottom: 14 }}>
@@ -397,6 +422,35 @@ function FilterSection({ title, options, selected, onSelect, withSwatches = fals
 
       {expanded && (
         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          {searchable && (
+            <div style={{ position: "relative", marginBottom: 4 }}>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#9ca3af" strokeWidth="1.8" strokeLinecap="round"
+                style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+                <circle cx="6.5" cy="6.5" r="4.5"/><path d="M11 11l3 3"/>
+              </svg>
+              <input
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Поиск..."
+                style={{
+                  width: "100%", boxSizing: "border-box",
+                  padding: "5px 8px 5px 26px",
+                  border: "0.5px solid #e2ddd4", borderRadius: 7,
+                  fontSize: 12, color: "#374151", background: "#faf7f3",
+                  outline: "none",
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = "#1f6f54"; }}
+                onBlur={e => { e.currentTarget.style.borderColor = "#e2ddd4"; }}
+              />
+              {query && (
+                <button type="button" onClick={() => setQuery("")}
+                  style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#9ca3af", fontSize: 14, lineHeight: 1, padding: 2 }}>
+                  ×
+                </button>
+              )}
+            </div>
+          )}
           {visible.map(opt => {
             const active = selected === opt.value;
             return (
@@ -435,7 +489,7 @@ function FilterSection({ title, options, selected, onSelect, withSwatches = fals
               </button>
             );
           })}
-          {options.length > SHOW && (
+          {!query && filtered.length > SHOW && (
             <button
               type="button"
               onClick={() => setShowAll(p => !p)}
@@ -444,8 +498,11 @@ function FilterSection({ title, options, selected, onSelect, withSwatches = fals
                 fontSize: 12, color: "#1f6f54", cursor: "pointer", textAlign: "left", fontWeight: 500,
               }}
             >
-              {showAll ? "Скрыть" : `Ещё ${options.length - SHOW}...`}
+              {showAll ? "Скрыть" : `Ещё ${filtered.length - SHOW}...`}
             </button>
+          )}
+          {searchable && query && filtered.length === 0 && (
+            <div style={{ padding: "6px 8px", fontSize: 12, color: "#9ca3af" }}>Не найдено</div>
           )}
         </div>
       )}
@@ -457,10 +514,10 @@ function FilterSection({ title, options, selected, onSelect, withSwatches = fals
 
 function SidebarContent({
   ui,
-  countryOptions, stateOptions, cityOptions, collectionOptions, colorOptions,
-  countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter,
+  countryOptions, stateOptions, cityOptions, collectionOptions, colorOptions, personOptions,
+  countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter, personFilter,
   selectedCountryIsUSA,
-  onCountryChange, onStateChange, onCityChange, onCollectionChange, onColorChange,
+  onCountryChange, onStateChange, onCityChange, onCollectionChange, onColorChange, onPersonChange,
 }) {
   return (
     <>
@@ -476,6 +533,9 @@ function SidebarContent({
       )}
       {colorOptions.length > 0 && (
         <FilterSection title={ui.color} options={colorOptions} selected={colorFilter} onSelect={onColorChange} withSwatches />
+      )}
+      {personOptions.length > 0 && (
+        <FilterSection title={ui.person} options={personOptions} selected={personFilter} onSelect={onPersonChange} searchable />
       )}
     </>
   );
@@ -585,6 +645,7 @@ function CatalogPage({
   const [cityFilter, setCityFilter] = useState(EMPTY_VALUE);
   const [collectionFilter, setCollectionFilter] = useState(EMPTY_VALUE);
   const [colorFilter, setColorFilter] = useState(EMPTY_VALUE);
+  const [personFilter, setPersonFilter] = useState(EMPTY_VALUE);
   const [sortMode, setSortMode] = useState("numberDesc");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
@@ -687,6 +748,22 @@ function CatalogPage({
       .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
   }, [mugs, countryFilter, stateFilter, cityFilter, language]);
 
+  const personOptions = useMemo(() => {
+    const counts = new Map();
+    mugs.forEach(mug => {
+      if (!mugMatchesGeo(mug)) return;
+      if (collectionFilter && !parseTokenList(mug.collection_keys).includes(collectionFilter)) return;
+      if (colorFilter && !parseTokenList(mug.color_keys).includes(colorFilter)) return;
+      const ids = Array.isArray(mug.brought_by_person_ids) ? mug.brought_by_person_ids
+        : mug.brought_by_person_id ? [mug.brought_by_person_id] : [];
+      ids.forEach(id => { if (id) counts.set(String(id), (counts.get(String(id)) || 0) + 1); });
+    });
+    return people
+      .filter(p => p.is_visible !== false && counts.has(String(p.id)))
+      .map(p => ({ value: String(p.id), label: getDisplayName(p), count: counts.get(String(p.id)) || 0 }))
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+  }, [mugs, people, countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter]);
+
   // ── Filtered mugs ──
 
   const filteredMugs = useMemo(() => {
@@ -696,6 +773,11 @@ function CatalogPage({
         if (!mugMatchesGeo(mug)) return false;
         if (collectionFilter && !parseTokenList(mug.collection_keys).includes(collectionFilter)) return false;
         if (colorFilter && !parseTokenList(mug.color_keys).includes(colorFilter)) return false;
+        if (personFilter) {
+          const ids = (Array.isArray(mug.brought_by_person_ids) ? mug.brought_by_person_ids
+            : mug.brought_by_person_id ? [mug.brought_by_person_id] : []).map(String);
+          if (!ids.includes(personFilter)) return false;
+        }
         if (!query) return true;
         const country = countriesById.get(String(mug.country_id || ""));
         const state = statesById.get(String(mug.state_id || ""));
@@ -715,7 +797,7 @@ function CatalogPage({
         if (sortMode === "numberAsc") return (Number(a.collection_number) || 0) - (Number(b.collection_number) || 0);
         return getDateTime(b.received_at) - getDateTime(a.received_at);
       });
-  }, [mugs, searchQuery, countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter, sortMode, countriesById, statesById, citiesById, language]);
+  }, [mugs, searchQuery, countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter, personFilter, sortMode, countriesById, statesById, citiesById, language]);
 
   const totalPages = Math.max(1, Math.ceil(filteredMugs.length / perPage));
   const pagedMugs = useMemo(() => {
@@ -739,7 +821,7 @@ function CatalogPage({
   function resetFilters() {
     setSearchQuery(""); setCountryFilter(EMPTY_VALUE); setStateFilter(EMPTY_VALUE);
     setCityFilter(EMPTY_VALUE); setCollectionFilter(EMPTY_VALUE); setColorFilter(EMPTY_VALUE);
-    setSortMode("newest");
+    setPersonFilter(EMPTY_VALUE); setSortMode("newest");
   }
 
   const activeTags = useMemo(() => {
@@ -762,8 +844,12 @@ function CatalogPage({
     if (colorFilter) {
       tags.push({ key: "color", label: getColorLabel(colorFilter), clear: () => setColorFilter(EMPTY_VALUE) });
     }
+    if (personFilter) {
+      const p = people.find(x => String(x.id) === personFilter);
+      if (p) tags.push({ key: "person", label: getDisplayName(p), clear: () => setPersonFilter(EMPTY_VALUE) });
+    }
     return tags;
-  }, [countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter, countries, statesById, cityOptions, language]);
+  }, [countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter, personFilter, countries, statesById, cityOptions, people, language]);
 
   const sortLabel = { newest: ui.newest, oldest: ui.oldest, titleAsc: ui.titleAsc, numberDesc: ui.numberDesc, numberAsc: ui.numberAsc }[sortMode] || ui.numberDesc;
 
@@ -775,14 +861,15 @@ function CatalogPage({
 
   const sidebarProps = {
     ui,
-    countryOptions, stateOptions, cityOptions, collectionOptions, colorOptions,
-    countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter,
+    countryOptions, stateOptions, cityOptions, collectionOptions, colorOptions, personOptions,
+    countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter, personFilter,
     selectedCountryIsUSA,
     onCountryChange: handleCountryChange,
     onStateChange: handleStateChange,
     onCityChange: setCityFilter,
     onCollectionChange: setCollectionFilter,
     onColorChange: setColorFilter,
+    onPersonChange: setPersonFilter,
   };
 
   return (
@@ -964,7 +1051,7 @@ function CatalogPage({
                   onEdit={setEditingMug}
                   onDelete={setDeletingMug}
                   peopleById={peopleById}
-                  onPersonClick={setSelectedPerson}
+                  onPersonClick={(p) => { window.history.pushState({}, "", `/people/${personSlug(p)}`); setSelectedPerson(p); }}
                 />
               );
             })}
@@ -1162,7 +1249,7 @@ function CatalogPage({
           countries={countries}
           language={language}
           isAdmin={isAdmin}
-          onClose={() => setSelectedPerson(null)}
+          onClose={() => { window.history.pushState({}, "", "/"); setSelectedPerson(null); }}
           onRefresh={() => {}}
         />
       )}

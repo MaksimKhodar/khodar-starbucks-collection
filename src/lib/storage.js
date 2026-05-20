@@ -4,10 +4,15 @@ const BUCKET = "mug-images";
 
 // ── URL helpers ───────────────────────────────────────────────────────────────
 
-export function getMugImageUrl(path) {
+// width/quality opts are used when Supabase image transform is available (Pro plan).
+// On free plan the transform is ignored and the original is served — no errors.
+export function getMugImageUrl(path, { width, quality } = {}) {
   if (!path) return "";
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  const opts = (width || quality)
+    ? { transform: { format: "webp", width: width || 800, quality: quality || 80 } }
+    : undefined;
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path, opts);
   return data?.publicUrl || "";
 }
 
