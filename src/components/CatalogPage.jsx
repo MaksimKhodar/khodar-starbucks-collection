@@ -781,10 +781,17 @@ function CatalogPage({
         if (!query) return true;
         const country = countriesById.get(String(mug.country_id || ""));
         const state = statesById.get(String(mug.state_id || ""));
+        const personIds = Array.isArray(mug.brought_by_person_ids) ? mug.brought_by_person_ids
+          : mug.brought_by_person_id ? [mug.brought_by_person_id] : [];
+        const personNames = personIds.map(id => {
+          const p = peopleById.get(String(id));
+          return p ? getDisplayName(p) : "";
+        });
         const text = [
           mug.title, mug.slug, mug.city, mug.city_key, getCityText(mug),
           mug.mug_type, mug.brought_by, mug.note,
           getCountryName(country), getStateName(state),
+          ...personNames,
           ...parseTokenList(mug.collection_keys).map(getCollectionLabel),
           ...parseTokenList(mug.color_keys).map(getColorLabel),
         ].map(normalizeText).join(" ");
@@ -797,7 +804,7 @@ function CatalogPage({
         if (sortMode === "numberAsc") return (Number(a.collection_number) || 0) - (Number(b.collection_number) || 0);
         return getDateTime(b.received_at) - getDateTime(a.received_at);
       });
-  }, [mugs, searchQuery, countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter, personFilter, sortMode, countriesById, statesById, citiesById, language]);
+  }, [mugs, searchQuery, countryFilter, stateFilter, cityFilter, collectionFilter, colorFilter, personFilter, sortMode, countriesById, statesById, citiesById, peopleById, language]);
 
   const totalPages = Math.max(1, Math.ceil(filteredMugs.length / perPage));
   const pagedMugs = useMemo(() => {
