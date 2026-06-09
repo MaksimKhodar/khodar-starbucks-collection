@@ -347,22 +347,49 @@ export default function PeoplePage({ people: peopleProp = [], mugs = [], countri
   const bubblePeople = useMemo(() => visible.filter(p => !p.is_owner), [visible]);
   const years = getCollectionYears();
   const [searchQuery, setSearchQuery] = useState("");
+  const [isPageMobile, setIsPageMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < MOBILE_BP);
+
+  useEffect(() => {
+    const handler = () => setIsPageMobile(window.innerWidth < MOBILE_BP);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  const statItems = [
+    { n: visible.length, label: language === "en" ? "contributors" : "участников" },
+    { n: mugs.length,    label: language === "en" ? "mugs"         : "кружек" },
+    { n: years,          label: language === "en" ? "years"        : "лет" },
+  ];
 
   return (
-    <div style={{ height: "calc(100vh - 52px)", display: "flex", flexDirection: "column", background: "#faf7f3", overflow: "hidden" }}>
+    <div style={{
+      height: isPageMobile ? "calc(100dvh - 52px)" : "calc(100vh - 52px)",
+      minHeight: isPageMobile ? 540 : undefined,
+      display: "flex", flexDirection: "column", background: "#faf7f3", overflow: "hidden",
+    }}>
 
       {/* Header */}
       <div style={{
-        display: "flex", alignItems: "center", gap: 12,
-        padding: "0 16px 0 20px", height: 52, flexShrink: 0,
+        display: "flex", alignItems: isPageMobile ? "stretch" : "center", gap: isPageMobile ? 10 : 12,
+        flexDirection: isPageMobile ? "column" : "row",
+        padding: isPageMobile ? "12px 14px" : "0 16px 0 20px",
+        height: isPageMobile ? "auto" : 52, flexShrink: 0,
         background: "#fff", borderBottom: "0.5px solid #e8e2d9",
+        boxSizing: "border-box", minWidth: 0,
       }}>
-        <h1 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#153126", whiteSpace: "nowrap", flexShrink: 0 }}>
-          {language === "en" ? "People Behind the Collection" : "Люди за коллекцией"}
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minWidth: 0 }}>
+          <h1 style={{ margin: 0, fontSize: isPageMobile ? 16 : 15, fontWeight: 700, color: "#153126", minWidth: 0 }}>
+            {language === "en" ? "People behind the mugs" : "Люди за кружками"}
+          </h1>
+          {isPageMobile && (
+            <span style={{ flexShrink: 0, fontSize: 11, color: "#1f6f54", fontWeight: 700, background: "#e8f5ee", borderRadius: 999, padding: "4px 8px" }}>
+              {visible.length}
+            </span>
+          )}
+        </div>
 
         {/* Search input */}
-        <div style={{ flex: 1, maxWidth: 260, position: "relative" }}>
+        <div style={{ flex: isPageMobile ? "none" : 1, width: isPageMobile ? "100%" : undefined, maxWidth: isPageMobile ? "none" : 260, position: "relative", minWidth: 0 }}>
           <svg style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "#9ca3af" }}
             width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -388,21 +415,31 @@ export default function PeoplePage({ people: peopleProp = [], mugs = [], countri
           )}
         </div>
 
-        <div style={{ display: "flex", gap: 14, fontSize: 12, color: "#5f6f66", flexShrink: 0, marginLeft: "auto" }}>
-          {[
-            { n: visible.length, label: language === "en" ? "contributors" : "участников" },
-            { n: mugs.length,    label: language === "en" ? "mugs"         : "кружек" },
-            { n: years,          label: language === "en" ? "years"        : "лет" },
-          ].map(s => (
-            <span key={s.label} style={{ whiteSpace: "nowrap" }}>
-              <strong style={{ color: "#153126" }}>{s.n}</strong>{" "}{s.label}
+        <div style={{
+          display: isPageMobile ? "grid" : "flex",
+          gridTemplateColumns: isPageMobile ? "repeat(3, minmax(0, 1fr))" : undefined,
+          gap: isPageMobile ? 8 : 14,
+          fontSize: 12, color: "#5f6f66", flexShrink: 0,
+          marginLeft: isPageMobile ? 0 : "auto", width: isPageMobile ? "100%" : undefined,
+        }}>
+          {statItems.map(item => (
+            <span key={item.label} style={{
+              whiteSpace: isPageMobile ? "normal" : "nowrap",
+              minWidth: 0,
+              padding: isPageMobile ? "8px 9px" : 0,
+              borderRadius: isPageMobile ? 12 : 0,
+              background: isPageMobile ? "#faf7f3" : "transparent",
+              border: isPageMobile ? "0.5px solid #e8e2d9" : "none",
+              lineHeight: 1.2,
+            }}>
+              <strong style={{ color: "#153126", display: isPageMobile ? "block" : "inline", fontSize: isPageMobile ? 18 : 12 }}>{item.n}</strong>{" "}{item.label}
             </span>
           ))}
         </div>
       </div>
 
       {/* Bubble canvas */}
-      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+      <div style={{ flex: 1, position: "relative", overflow: "hidden", minHeight: isPageMobile ? 360 : 0 }}>
         {visible.length === 0 ? (
           <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#8a9e96" }}>
             <div style={{ textAlign: "center" }}>
