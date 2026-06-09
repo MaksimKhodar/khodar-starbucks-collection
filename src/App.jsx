@@ -144,37 +144,48 @@ function AdminLoginModal({ isOpen, language, loading, error, onClose, onSubmit }
 // ─── MobileStatsBar ───────────────────────────────────────────────────────────
 
 function MobileStatsBar({ mugsCount, countriesWithMugsCount, countriesWithStarbucksCount, visibleFriendsCount, h, onPeopleClick }) {
+  const cardStyle = {
+    minWidth: 0,
+    padding: "11px 10px",
+    background: "#fff",
+    borderRadius: 14,
+    border: "0.5px solid #e8e2d9",
+    boxShadow: "0 8px 22px rgba(31, 41, 55, 0.04)",
+  };
+  const valueStyle = { fontSize: 24, fontWeight: 700, color: "#153126", lineHeight: 1 };
+  const labelStyle = { fontSize: 10.5, color: "#5f6f66", lineHeight: 1.25, marginTop: 5 };
+
   return (
     <div style={{
-      display: "flex", overflowX: "auto", gap: 10, padding: "12px 16px",
+      display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+      gap: 8, padding: "12px 14px 14px",
       background: "#faf7f3", borderTop: "0.5px solid #e8e2d9",
-      scrollbarWidth: "none",
     }}>
-      <div style={{ flexShrink: 0, padding: "10px 16px", background: "#fff", borderRadius: 12, border: "0.5px solid #e8e2d9", minWidth: 120 }}>
-        <div style={{ fontSize: 26, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{mugsCount}</div>
-        <div style={{ fontSize: 11, color: "#5f6f66", marginTop: 3, whiteSpace: "nowrap" }}>{h.stat1label}</div>
+      <div style={cardStyle}>
+        <div style={valueStyle}>{mugsCount}</div>
+        <div style={labelStyle}>{h.stat1label}</div>
       </div>
-      <div style={{ flexShrink: 0, padding: "10px 16px", background: "#fff", borderRadius: 12, border: "0.5px solid #e8e2d9", minWidth: 120 }}>
-        <div style={{ fontSize: 26, fontWeight: 700, color: "#1f6f54", lineHeight: 1 }}>{countriesWithMugsCount}</div>
-        <div style={{ fontSize: 11, color: "#5f6f66", marginTop: 3, whiteSpace: "nowrap" }}>{h.stat2label(countriesWithMugsCount, countriesWithStarbucksCount)}</div>
+      <div style={cardStyle}>
+        <div style={{ ...valueStyle, color: "#1f6f54" }}>{countriesWithMugsCount}</div>
+        <div style={labelStyle}>{h.stat2label(countriesWithMugsCount, countriesWithStarbucksCount)}</div>
       </div>
-      {/* People stat — only shown to admins on mobile */}
-      {onPeopleClick && (
-        <button
-          type="button"
-          onClick={onPeopleClick}
-          style={{
-            flexShrink: 0, padding: "10px 16px", background: "#fff", borderRadius: 12,
-            border: "0.5px solid #e8e2d9", minWidth: 120, textAlign: "left", cursor: "pointer",
-          }}
-        >
-          <div style={{ fontSize: 26, fontWeight: 700, color: "#153126", lineHeight: 1 }}>{visibleFriendsCount}</div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 3 }}>
-            <span style={{ fontSize: 11, color: "#5f6f66", whiteSpace: "nowrap" }}>{h.stat3label}</span>
-            <span style={{ fontSize: 11, color: "#1f6f54", fontWeight: 700 }}>→</span>
-          </div>
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={onPeopleClick}
+        style={{
+          ...cardStyle,
+          textAlign: "left",
+          cursor: "pointer",
+          appearance: "none",
+          fontFamily: "inherit",
+        }}
+      >
+        <div style={valueStyle}>{visibleFriendsCount}</div>
+        <div style={{ ...labelStyle, display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 4 }}>
+          <span>{h.stat3label}</span>
+          <span style={{ color: "#1f6f54", fontWeight: 800, fontSize: 12, lineHeight: 1 }}>→</span>
+        </div>
+      </button>
     </div>
   );
 }
@@ -255,13 +266,13 @@ function PeopleTeaser({ people = [], mugs = [], language, isMobile = false, onCl
           fontSize: isMobile ? 13 : 14, fontWeight: 700, color: "#153126",
           marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         }}>
-          {language === "en" ? "People Behind the Collection" : "Люди за коллекцией"}
+          {language === "en" ? "People behind the mugs" : "Люди за кружками"}
         </div>
         {!isMobile && (
           <div style={{ fontSize: 12, color: "#5f6f66" }}>
             {language === "en"
-              ? `${visibleCount} friends from around the world helped build this collection`
-              : `${visibleCount} друзей со всего мира помогли собрать эту коллекцию`}
+              ? `${visibleCount} contributors helped build this collection`
+              : `${visibleCount} участников помогли собрать эту коллекцию`}
           </div>
         )}
         {isMobile && (
@@ -303,73 +314,6 @@ function QRModal({ onClose }) {
         <div style={{ marginTop: 14, fontSize: 12, color: "#5f6f66" }}>Отсканируй камерой телефона</div>
         <button type="button" onClick={onClose} style={{ marginTop: 16, padding: "8px 24px", border: "none", borderRadius: 10, background: "#1f6f54", color: "#fff", fontWeight: 600, cursor: "pointer" }}>Закрыть</button>
       </div>
-    </div>
-  );
-}
-
-// ─── MobileDesktopBanner ─────────────────────────────────────────────────────
-
-function MobileDesktopBanner({ language, onClose }) {
-  const ru = language !== "en";
-  return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 1000,
-      background: "rgba(10,22,14,0.52)",
-      display: "flex", alignItems: "flex-end",
-    }}>
-      <div style={{
-        width: "100%",
-        background: "#fffaf4",
-        borderRadius: "22px 22px 0 0",
-        padding: "28px 24px 44px",
-        boxShadow: "0 -12px 48px rgba(0,0,0,0.18)",
-        animation: "slideUpSheet 0.32s cubic-bezier(0.32,0.72,0,1)",
-      }}>
-        {/* Icon + heading */}
-        <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <div style={{ fontSize: 36, marginBottom: 10 }}>🖥️</div>
-          <h2 style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 700, color: "#153126" }}>
-            {ru ? "Мобильная версия" : "Mobile version"}
-          </h2>
-          <p style={{ margin: 0, fontSize: 13, color: "#5f6f66", lineHeight: 1.65 }}>
-            {ru
-              ? "На мобильном доступен каталог и фильтры кружек. Полная версия доступна с компьютера или в режиме «Полный сайт» в браузере."
-              : "On mobile you can browse the catalog and use filters. The full experience is available on desktop or via \"Desktop site\" in your browser."}
-          </p>
-        </div>
-
-        {/* Feature list */}
-        <div style={{ background: "#f5f0e8", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#1f6f54", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
-            {ru ? "На полной версии доступно" : "Full version includes"}
-          </div>
-          {[
-            { icon: "🗺️", text: ru ? "Интерактивная карта мира" : "Interactive world map" },
-            { icon: "📊", text: ru ? "Статистика и аналитика" : "Statistics & analytics" },
-            { icon: "👥", text: ru ? "Интерактивная доска участников коллекции" : "Interactive contributors board" },
-          ].map((item, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: i < 2 ? 8 : 0 }}>
-              <span style={{ fontSize: 18, lineHeight: 1 }}>{item.icon}</span>
-              <span style={{ fontSize: 13, color: "#374151" }}>{item.text}</span>
-            </div>
-          ))}
-        </div>
-
-        <button type="button" onClick={onClose} style={{
-          width: "100%", padding: "14px", border: "none", borderRadius: 14,
-          background: "#1f6f54", color: "#fff",
-          fontSize: 15, fontWeight: 600, cursor: "pointer",
-        }}>
-          {ru ? "Понятно, к каталогу →" : "Got it, show catalog →"}
-        </button>
-      </div>
-
-      <style>{`
-        @keyframes slideUpSheet {
-          from { transform: translateY(100%); }
-          to   { transform: translateY(0); }
-        }
-      `}</style>
     </div>
   );
 }
@@ -475,7 +419,6 @@ function AppContent() {
   const [fatalError, setFatalError] = useState("");
   const [warningMessage, setWarningMessage] = useState("");
   const [currentView, setCurrentView] = useState("home");
-  const [mobileBannerDismissed, setMobileBannerDismissed] = useState(false);
   const [showQR, setShowQR] = useState(false);
 
   // Deep-link modal state
@@ -793,8 +736,6 @@ function AppContent() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   const isAdminView = ADMIN_ONLY_VIEWS.has(currentView);
-  const showMobileBanner = isMobile && !isAdminAuthenticated && !mobileBannerDismissed;
-
   if (loading) return (
     <div className="card"><div className="empty-state"><h2>{t("loadingTitle")}</h2><p>{t("loadingText")}</p></div></div>
   );
@@ -808,10 +749,6 @@ function AppContent() {
 
   return (
     <div className="page">
-
-      {showMobileBanner && (
-        <MobileDesktopBanner language={language} onClose={() => setMobileBannerDismissed(true)} />
-      )}
 
       {/* ── Deep-link modals (opened via /mug/:id or /people/:slug) ── */}
       {deepLinkMugId && (() => {
@@ -1068,7 +1005,7 @@ function AppContent() {
                 )}
               </div>
 
-              {/* Mobile stats bar — outside padded wrapper so overflowX: auto works correctly */}
+              {/* Mobile stats bar — compact 3-card grid */}
               {isMobile && (
                 <MobileStatsBar
                   mugsCount={mugs.length}
@@ -1076,10 +1013,96 @@ function AppContent() {
                   countriesWithStarbucksCount={countriesWithStarbucksCount}
                   visibleFriendsCount={visibleFriendsCount}
                   h={h}
-                  onPeopleClick={isAdminAuthenticated ? () => setCurrentView("people") : null}
+                  onPeopleClick={() => setCurrentView("people")}
                 />
               )}
             </div>
+
+            {/* Mobile map — compact, touch-friendly, and kept inside the viewport */}
+            {isMobile && (
+              <div style={{
+                display: "flex", flexDirection: "column", minWidth: 0,
+                background: "#faf7f3", borderTop: "0.5px solid #e8e2d9",
+              }}>
+                <div style={{
+                  display: "flex", gap: 8, alignItems: "center",
+                  padding: "10px 14px 8px", overflowX: "auto",
+                  WebkitOverflowScrolling: "touch", scrollbarWidth: "none",
+                }}>
+                  <span style={{
+                    flexShrink: 0, fontSize: 10, fontWeight: 800, color: "#8a9e96",
+                    textTransform: "uppercase", letterSpacing: "0.04em",
+                  }}>
+                    {h.legendTitle}
+                  </span>
+                  {[
+                    { color: "#E8E1D7", border: "0.5px solid #ccc", label: h.l1 },
+                    { color: "#B7D7C2", label: h.l2 },
+                    { color: "#2F7D57", label: h.l3 },
+                  ].map((item, i) => (
+                    <div key={i} style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "5px 8px", borderRadius: 999, background: "rgba(255,255,255,0.72)",
+                      fontSize: 10.5, color: "#5f6f66", whiteSpace: "nowrap", flexShrink: 0,
+                    }}>
+                      <div style={{ width: 9, height: 9, borderRadius: "50%", background: item.color, border: item.border || "none", flexShrink: 0 }} />
+                      {item.label}
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{
+                  position: "relative", height: "min(84vw, 370px)", minHeight: 300,
+                  margin: "0 14px 14px", borderRadius: 22, overflow: "hidden",
+                  border: "0.5px solid #e8e2d9", background: "#efe7dc",
+                  boxShadow: "0 18px 42px rgba(31, 41, 55, 0.08)",
+                }}>
+                  <GlobeMapAsync
+                    countryData={globeCountryData}
+                    selectedCountryCode={selectedRegionCode}
+                    selectedRegionCode={selectedRegionCode}
+                    hoveredCountryCode={selectedRegionCode ? "" : hoveredRegionCode}
+                    hoveredRegionCode={selectedRegionCode ? "" : hoveredRegionCode}
+                    onCountryHover={handleCountryHover}
+                    onCountryClick={handleCountryClick}
+                    isActive={true}
+                    language={language}
+                  />
+
+                  {!selectedRegionCode && (
+                    <div style={{
+                      position: "absolute", left: 12, right: 12, bottom: 12,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      padding: "7px 10px", borderRadius: 999,
+                      background: "rgba(255,255,255,0.9)",
+                      fontSize: 11.5, color: "#5f6f66", textAlign: "center", pointerEvents: "none",
+                    }}>
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#1f6f54", flexShrink: 0 }} />
+                      {h.hint}
+                    </div>
+                  )}
+
+                  {selectedRegionCode && panelCountryRecord && (
+                    <div style={{
+                      position: "absolute", top: 12, left: 12, right: 12,
+                      display: "flex", alignItems: "center", gap: 7,
+                      padding: "8px 10px", borderRadius: 12,
+                      background: "rgba(255,255,255,0.94)", border: "0.5px solid #e8e2d9",
+                      fontSize: 12, color: "#153126", fontWeight: 700,
+                      boxSizing: "border-box", minWidth: 0,
+                    }}>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                        {getCountryDisplayName(panelCountryRecord)}
+                      </span>
+                      <span style={{ color: "#1f6f54", fontWeight: 800, whiteSpace: "nowrap", flexShrink: 0 }}>
+                        {panelMugs.length} {h.mugsLabel}
+                      </span>
+                      <button type="button" onClick={clearSelection} style={{ marginLeft: "auto", background: "none", border: "none", fontSize: 18, color: "#9ca3af", cursor: "pointer", padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Right: legend + globe — desktop only */}
             {!isMobile && (
@@ -1157,8 +1180,8 @@ function AppContent() {
             )}
           </section>
 
-          {/* ── People teaser — desktop only for non-admins ── */}
-          {(!isMobile || isAdminAuthenticated) && (
+          {/* ── People teaser — visible on desktop and mobile ── */}
+          <div id="people-section">
             <PeopleTeaser
               people={people}
               mugs={mugs}
@@ -1166,7 +1189,7 @@ function AppContent() {
               isMobile={isMobile}
               onClick={() => setCurrentView("people")}
             />
-          )}
+          </div>
 
           {/* ── Catalog ── */}
           <div id="catalog-section">
